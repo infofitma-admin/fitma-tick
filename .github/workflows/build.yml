@@ -1,0 +1,44 @@
+name: Build Fitma Tick
+
+# Builds installers for Windows + macOS (+ Linux) on real runners, unsigned.
+# Run it from the GitHub "Actions" tab (Run workflow), or it runs on a version tag.
+
+on:
+  workflow_dispatch: {}
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: --win
+          - os: macos-latest
+            target: --mac
+          - os: ubuntu-latest
+            target: --linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - name: Build
+        run: npx electron-builder ${{ matrix.target }} --publish never
+        env:
+          # no signing in CI (unsigned build); Apple/Windows certs can be added here later
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: fitma-tick-${{ matrix.os }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+          if-no-files-found: ignore

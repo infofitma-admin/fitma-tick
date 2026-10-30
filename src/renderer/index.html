@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fitma Tick</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Corben:wght@700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- ========== SIGN IN ========== -->
+  <section id="view-login" class="view">
+    <div class="login-wrap">
+      <div class="brand">
+        <img class="vora" src="../assets/vora.svg" alt="">
+        <div class="brand-name">Fitma <span>Tick</span></div>
+      </div>
+      <p class="tagline">Sign in with your Fitma email and password — the same ones you use for the Workspace.</p>
+      <form id="login-form" autocomplete="off">
+        <label>Email
+          <input id="email" type="email" placeholder="you@gmail.com" required>
+        </label>
+        <label>Password
+          <div class="pw-wrap">
+            <input id="password" type="password" placeholder="Your password" required>
+            <button type="button" id="pw-eye" class="pw-eye" aria-label="Show password">show</button>
+          </div>
+        </label>
+        <div id="login-err" class="err" hidden></div>
+        <button id="login-btn" type="submit" class="btn primary">Sign in</button>
+      </form>
+      <p class="hint">First time? Use the starter password from your admin. You can change it in the Workspace.</p>
+    </div>
+  </section>
+
+  <!-- ========== TRACKER ========== -->
+  <section id="view-track" class="view" hidden>
+    <header class="top">
+      <div class="brand sm">
+        <img class="vora" src="../assets/vora.svg" alt="">
+        <div class="brand-name">Fitma <span>Tick</span></div>
+      </div>
+      <div class="who">
+        <span id="who-name" class="who-name"></span>
+        <button id="logout" class="link">Sign out</button>
+      </div>
+    </header>
+
+    <main class="track-main">
+      <div class="card timer-card">
+        <div id="status-pill" class="pill off">Not tracking</div>
+        <div id="clock" class="clock">0:00:00</div>
+        <div class="sub">tracked today</div>
+
+        <label class="proj-label">Project
+          <select id="project"></select>
+        </label>
+
+        <button id="toggle" class="btn primary big">Start</button>
+        <div id="track-err" class="err" hidden></div>
+      </div>
+
+      <div class="card meta-card">
+        <div class="meta-row"><span>Activity</span><b id="activity">—</b></div>
+        <div class="meta-row"><span>Last screenshot</span><b id="lastshot">—</b></div>
+        <div class="meta-row"><span>Next screenshot</span><b id="nextshot">—</b></div>
+        <p class="note">Fitma Tick takes a screenshot of your screen every ~10 minutes while you’re tracking, and measures how active you are. Your hours and screenshots show up for the admin in the Workspace.</p>
+      </div>
+    </main>
+  </section>
+
+<script src="renderer.js"></script>
+</body>
+</html>

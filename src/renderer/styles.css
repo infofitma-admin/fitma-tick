@@ -1,0 +1,70 @@
+:root{
+  --navy:#283544; --steel:#6b8499; --steel-2:#3f5d73;
+  --on-navy:#eef2f5; --on-navy-muted:#9fb1c2;
+  --bg:#f3f5f7; --surface:#ffffff; --surface-2:#f6f8fa; --line:#e0e5ea;
+  --ink:#1e2834; --muted:#65778a;
+  --brand:#3f5d73; --brand-soft:#e6edf3; --brand-ink:#2d4659;
+  --good:#2e8a68; --good-soft:#e2f2eb; --warn:#e0b100; --bad:#d0393b;
+  --display:"Corben", Georgia, "Times New Roman", serif;
+  --body:"Montserrat","Segoe UI",system-ui,-apple-system,sans-serif;
+  --r:12px; --r-sm:8px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font-family:var(--body);background:var(--bg);color:var(--ink);font-size:14px;-webkit-user-select:none;user-select:none}
+.view{min-height:100vh;display:flex;flex-direction:column}
+[hidden]{display:none !important}
+
+/* brand */
+.brand{display:flex;align-items:center;gap:10px}
+.brand .vora{width:40px;height:40px}
+.brand.sm .vora{width:28px;height:28px}
+.brand-name{font-family:var(--display);font-size:22px;color:var(--navy);letter-spacing:.2px}
+.brand.sm .brand-name{font-size:16px}
+.brand-name span{color:var(--steel-2)}
+
+/* buttons / inputs */
+.btn{font-family:var(--body);font-weight:600;font-size:14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--r-sm);padding:10px 16px;cursor:pointer;transition:.15s}
+.btn:hover{border-color:var(--steel)}
+.btn.primary{background:var(--navy);border-color:var(--navy);color:#fff}
+.btn.primary:hover{background:var(--steel-2);border-color:var(--steel-2)}
+.btn.big{font-size:17px;padding:14px 22px;width:100%;margin-top:6px}
+.btn.stop{background:var(--bad);border-color:var(--bad)}
+.btn.stop:hover{background:#b33133;border-color:#b33133}
+.link{background:none;border:0;color:var(--muted);cursor:pointer;font-family:var(--body);font-size:13px;text-decoration:underline}
+.link:hover{color:var(--ink)}
+input,select{font-family:var(--body);font-size:14px;width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface);color:var(--ink);margin-top:5px}
+input:focus,select:focus{outline:none;border-color:var(--steel)}
+label{display:block;font-weight:600;font-size:13px;color:var(--muted);margin-bottom:12px}
+.err{background:var(--bad);color:#fff;border-radius:var(--r-sm);padding:9px 12px;font-size:13px;margin:4px 0 12px}
+
+/* ===== login ===== */
+#view-login{align-items:center;justify-content:center;padding:28px}
+.login-wrap{width:100%;max-width:360px;text-align:center}
+.login-wrap .brand{justify-content:center;margin-bottom:14px}
+.tagline{color:var(--muted);font-size:13.5px;line-height:1.55;margin:0 0 22px}
+#login-form{text-align:left}
+.pw-wrap{position:relative}
+.pw-wrap input{padding-right:58px}
+.pw-eye{position:absolute;top:calc(50% + 2px);right:8px;transform:translateY(-50%);border:0;background:none;color:var(--steel-2);font-size:12px;font-weight:600;cursor:pointer;padding:4px 6px}
+.hint{color:var(--muted);font-size:12px;line-height:1.5;margin-top:16px}
+
+/* ===== tracker ===== */
+.top{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:var(--surface)}
+.who{display:flex;align-items:center;gap:12px}
+.who-name{font-weight:600;font-size:13.5px}
+.track-main{flex:1;padding:22px 20px;display:grid;gap:16px;align-content:start;max-width:620px;width:100%;margin:0 auto}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:22px}
+.timer-card{text-align:center}
+.pill{display:inline-block;font-size:12px;font-weight:700;border-radius:999px;padding:4px 12px;letter-spacing:.3px}
+.pill.off{background:var(--surface-2);color:var(--muted)}
+.pill.on{background:var(--good-soft);color:var(--good)}
+.pill.paused{background:#fdf3c9;color:#7d6200}
+.clock{font-family:var(--display);font-size:52px;line-height:1.1;margin:14px 0 2px;color:var(--navy);font-variant-numeric:tabular-nums}
+.sub{color:var(--muted);font-size:12.5px;margin-bottom:18px}
+.proj-label{text-align:left;max-width:340px;margin:0 auto 6px}
+.meta-card .meta-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+.meta-card .meta-row:last-of-type{border-bottom:0}
+.meta-row span{color:var(--muted);font-size:13px}
+.meta-row b{font-size:14px;font-variant-numeric:tabular-nums}
+.note{color:var(--muted);font-size:12px;line-height:1.55;margin:12px 0 0}
