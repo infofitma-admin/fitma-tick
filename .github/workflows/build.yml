@@ -1,12 +1,15 @@
 name: Build Fitma Tick
 
-# Builds installers for Windows + macOS (+ Linux) on real runners, unsigned.
-# Run it from the GitHub "Actions" tab (Run workflow), or it runs on a version tag.
+# Builds installers for Windows + macOS (+ Linux) on real runners, unsigned,
+# then publishes them to a GitHub Release with direct download links.
 
 on:
   workflow_dispatch: {}
   push:
     tags: ['v*']
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -30,9 +33,8 @@ jobs:
       - name: Build
         run: npx electron-builder ${{ matrix.target }} --publish never
         env:
-          # no signing in CI (unsigned build); Apple/Windows certs can be added here later
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-      - name: Upload installers
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: fitma-tick-${{ matrix.os }}
@@ -42,3 +44,28 @@ jobs:
             dist/*.zip
             dist/*.AppImage
           if-no-files-found: ignore
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all installers
+        uses: actions/download-artifact@v4
+        with:
+          path: all
+      - name: Flatten
+        run: |
+          mkdir -p out
+          find all -type f \( -name '*.exe' -o -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' \) -exec cp {} out/ \;
+          ls -la out
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=v0.1.0
+          NOTES="Fitma Tick — unsigned test build.
+          Windows: download the Setup .exe, run it, then on the blue warning click **More info -> Run anyway**.
+          macOS: download the .dmg, open it, drag Fitma Tick to Applications, then **right-click the app -> Open** (one time), and allow **Screen Recording** in System Settings > Privacy & Security.
+          Sign in with your Fitma email + password (reset one in the Workspace > Team & access)."
+          gh release create "$TAG" --repo "${{ github.repository }}" --title "Fitma Tick $TAG" --notes "$NOTES" out/* \
+            || gh release upload "$TAG" --repo "${{ github.repository }}" out/* --clobber
