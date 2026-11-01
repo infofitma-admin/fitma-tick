@@ -48,6 +48,7 @@ label{display:block;font-weight:600;font-size:13px;color:var(--muted);margin-bot
 .pw-wrap input{padding-right:58px}
 .pw-eye{position:absolute;top:calc(50% + 2px);right:8px;transform:translateY(-50%);border:0;background:none;color:var(--steel-2);font-size:12px;font-weight:600;cursor:pointer;padding:4px 6px}
 .hint{color:var(--muted);font-size:12px;line-height:1.5;margin-top:16px}
+.login-vora-err{width:94px;height:auto;display:block;margin:2px auto 10px;filter:drop-shadow(0 9px 16px rgba(208,57,59,.2))}
 
 /* ===== tracker ===== */
 .top{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line);background:var(--surface)}
@@ -56,6 +57,7 @@ label{display:block;font-weight:600;font-size:13px;color:var(--muted);margin-bot
 .track-main{flex:1;padding:22px 20px;display:grid;gap:16px;align-content:start;max-width:620px;width:100%;margin:0 auto}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:22px}
 .timer-card{text-align:center}
+.vora-state{width:116px;height:auto;display:block;margin:-4px auto 8px;filter:drop-shadow(0 9px 16px rgba(40,53,68,.16));transition:opacity .18s ease}
 .pill{display:inline-block;font-size:12px;font-weight:700;border-radius:999px;padding:4px 12px;letter-spacing:.3px}
 .pill.off{background:var(--surface-2);color:var(--muted)}
 .pill.on{background:var(--good-soft);color:var(--good)}

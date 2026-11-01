@@ -33,13 +33,13 @@ $('pw-eye').addEventListener('click', () => {
 });
 $('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const btn = $('login-btn'); const err = $('login-err');
-  err.hidden = true; btn.disabled = true; btn.textContent = 'Signing in…';
+  const btn = $('login-btn'); const err = $('login-err'); const vErr = $('login-vora-err');
+  err.hidden = true; vErr.hidden = true; btn.disabled = true; btn.textContent = 'Signing in…';
   try {
     await window.tick.login($('email').value.trim(), $('password').value);
     $('password').value = '';
   } catch (ex) {
-    err.textContent = ex.message || 'Could not sign in.'; err.hidden = false;
+    err.textContent = ex.message || 'Could not sign in.'; err.hidden = false; vErr.hidden = false;
   } finally {
     btn.disabled = false; btn.textContent = 'Sign in';
   }
@@ -107,6 +107,13 @@ function render() {
 
   const err = $('track-err');
   if (state.error) { err.textContent = state.error; err.hidden = false; } else { err.hidden = true; }
+
+  // Reactive Vora: error -> wrench, tracking -> success, idle -> empty
+  const vs = $('vora-state');
+  if (vs) {
+    const want = state.error ? 'error' : (state.tracking ? 'success' : 'empty');
+    if (vs.dataset.s !== want) { vs.dataset.s = want; vs.src = '../assets/vora-' + want + '.png'; }
+  }
 }
 
 window.tick.onState((s) => { state = s; render(); });
