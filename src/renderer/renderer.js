@@ -6,20 +6,6 @@ function fmtClock(sec) {
   const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
   return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
 }
-function fmtTime(ms) {
-  if (!ms) return '—';
-  const d = new Date(ms);
-  let h = d.getHours(); const m = String(d.getMinutes()).padStart(2, '0');
-  const ap = h < 12 ? 'AM' : 'PM'; h = h % 12 || 12;
-  return h + ':' + m + ' ' + ap;
-}
-function relFuture(ms) {
-  if (!ms) return '—';
-  const diff = Math.round((ms - Date.now()) / 1000);
-  if (diff <= 0) return 'any moment';
-  if (diff < 60) return 'in ' + diff + 's';
-  return 'in ' + Math.round(diff / 60) + ' min';
-}
 
 let state = {};
 let projectsLoaded = false;
@@ -33,34 +19,45 @@ $('pw-eye').addEventListener('click', () => {
 });
 $('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const btn = $('login-btn'); const err = $('login-err'); const vErr = $('login-vora-err');
-  err.hidden = true; vErr.hidden = true; btn.disabled = true; btn.textContent = 'Signing in…';
+  const btn = $('login-btn'); const err = $('login-err'); const hero = $('login-vora');
+  err.hidden = true; btn.disabled = true; btn.textContent = 'Signing in…';
   try {
     await window.tick.login($('email').value.trim(), $('password').value);
     $('password').value = '';
+    hero.src = '../assets/icon.png';
   } catch (ex) {
-    err.textContent = ex.message || 'Could not sign in.'; err.hidden = false; vErr.hidden = false;
+    err.textContent = ex.message || 'Could not sign in.'; err.hidden = false;
+    hero.src = '../assets/vora-error.png';          // Vora reacts to a failed sign-in
   } finally {
     btn.disabled = false; btn.textContent = 'Sign in';
   }
 });
 
-// ---- tracker ----
+// ---- tracker actions ----
 $('logout').addEventListener('click', async () => {
   if (state.tracking && !confirm('Stop tracking and sign out?')) return;
   projectsLoaded = false;
   await window.tick.logout();
 });
-$('toggle').addEventListener('click', async () => {
-  const err = $('track-err'); err.hidden = true;
-  if (state.tracking) {
-    await window.tick.stop();
-  } else {
-    const project = $('project').value;
-    if (!project) { err.textContent = 'Pick a project first.'; err.hidden = false; return; }
-    await window.tick.start(project);
-  }
-});
+
+function wireActions() {
+  // delegated: buttons are rebuilt per state
+  $('actions').addEventListener('click', async (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    const err = $('track-err'); err.hidden = true;
+    if (b.dataset.act === 'start') {
+      const project = $('project').value;
+      if (!project) { err.textContent = 'Pick a project first.'; err.hidden = false; return; }
+      await window.tick.start(project);
+    } else if (b.dataset.act === 'pause') {
+      await window.tick.pause();
+    } else if (b.dataset.act === 'resume') {
+      await window.tick.resume();
+    } else if (b.dataset.act === 'stop') {
+      await window.tick.stop();
+    }
+  });
+}
 
 async function loadProjects() {
   const sel = $('project');
@@ -80,6 +77,28 @@ async function loadProjects() {
   projectsLoaded = true;
 }
 
+// current "mode": ready | tracking | paused (manual) | away (idle) | error
+function mode() {
+  if (state.error) return 'error';
+  if (!state.tracking) return 'ready';
+  if (state.manualPaused) return 'paused';
+  if (state.paused) return 'away';
+  return 'tracking';
+}
+
+function renderActions(m) {
+  const box = $('actions');
+  if (!state.tracking) {
+    box.innerHTML = '<button class="btn primary big" data-act="start">Start tracking</button>';
+  } else if (m === 'paused') {
+    box.innerHTML = '<button class="btn resume big" data-act="resume">Resume</button>' +
+                    '<button class="btn stop big" data-act="stop">Stop</button>';
+  } else {
+    box.innerHTML = '<button class="btn pause big" data-act="pause">Pause</button>' +
+                    '<button class="btn stop big" data-act="stop">Stop</button>';
+  }
+}
+
 function render() {
   const onLogin = !state.signedIn;
   $('view-login').hidden = !onLogin;
@@ -89,33 +108,50 @@ function render() {
   $('who-name').textContent = state.name || '';
   if (!projectsLoaded) loadProjects();
 
-  const pill = $('status-pill');
-  if (state.tracking && state.paused) { pill.className = 'pill paused'; pill.textContent = 'Paused — you’re idle'; }
-  else if (state.tracking) { pill.className = 'pill on'; pill.textContent = 'Tracking'; }
-  else { pill.className = 'pill off'; pill.textContent = 'Not tracking'; }
+  const m = mode();
+
+  // status pill + dot
+  const pill = $('status-pill'); const dot = $('status-dot');
+  if (m === 'tracking') { pill.className = 'pill on'; pill.textContent = 'Tracking'; dot.className = 'status-dot on'; }
+  else if (m === 'paused') { pill.className = 'pill paused'; pill.textContent = 'Paused'; dot.className = 'status-dot paused'; }
+  else if (m === 'away') { pill.className = 'pill paused'; pill.textContent = 'Away — you’re idle'; dot.className = 'status-dot paused'; }
+  else { pill.className = 'pill off'; pill.textContent = 'Ready to track'; dot.className = 'status-dot off'; }
 
   $('clock').textContent = fmtClock(state.todaySec || 0);
 
-  const toggle = $('toggle');
-  toggle.textContent = state.tracking ? 'Stop' : 'Start';
-  toggle.className = 'btn big ' + (state.tracking ? 'stop' : 'primary');
+  renderActions(m);
   $('project').disabled = state.tracking;
 
-  $('activity').textContent = state.tracking ? ((state.activity || 0) + '%') : '—';
-  $('lastshot').textContent = fmtTime(state.lastShot);
-  $('nextshot').textContent = state.tracking && !state.paused ? relFuture(state.nextShotAt) : '—';
+  // pause hint
+  const ph = $('pausehint');
+  if (m === 'paused') { ph.textContent = 'Paused — your time and screenshots are stopped. Press Resume when you’re back.'; ph.hidden = false; }
+  else if (m === 'away') { ph.textContent = 'You’ve been idle, so tracking paused automatically. Move the mouse to continue.'; ph.hidden = false; }
+  else { ph.hidden = true; }
+
+  // activity meter
+  const act = state.tracking ? (state.activity || 0) : 0;
+  $('activity').textContent = state.tracking ? (act + '%') : '—';
+  $('activity-bar').style.width = act + '%';
+
+  // screenshots: count only — timing is intentionally hidden (anti-cheat)
+  $('shots').textContent = state.shotsToday || 0;
+  $('cap-state').textContent = state.shotsActive ? 'On' : 'Off';
 
   const err = $('track-err');
   if (state.error) { err.textContent = state.error; err.hidden = false; } else { err.hidden = true; }
 
-  // Reactive Vora: error -> wrench, tracking -> success, idle -> empty
+  // Reactive Vora:
+  //   error -> wrench   | tracking -> check   | ready / paused / away -> friendly idle
   const vs = $('vora-state');
   if (vs) {
-    const want = state.error ? 'error' : (state.tracking ? 'success' : 'empty');
+    const want = (m === 'error') ? 'error' : (m === 'tracking') ? 'success' : 'empty';
     if (vs.dataset.s !== want) { vs.dataset.s = want; vs.src = '../assets/vora-' + want + '.png'; }
+    // rest/dim Vora when paused or away so "idle" reads at a glance
+    vs.classList.toggle('resting', m === 'paused' || m === 'away');
   }
 }
 
+wireActions();
 window.tick.onState((s) => { state = s; render(); });
 
 // local 1s repaint so the clock ticks smoothly even between main-process pushes

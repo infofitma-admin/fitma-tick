@@ -13,10 +13,10 @@
   <!-- ========== SIGN IN ========== -->
   <section id="view-login" class="view">
     <div class="login-wrap">
-      <div class="brand">
-        <img class="vora" src="../assets/vora.svg" alt="">
-        <div class="brand-name">Fitma <span>Tick</span></div>
+      <div class="login-hero">
+        <img id="login-vora" class="login-vora" src="../assets/icon.png" alt="Vora">
       </div>
+      <div class="brand"><div class="brand-name">Fitma <span>Tick</span></div></div>
       <p class="tagline">Sign in with your Fitma email and password — the same ones you use for the Workspace.</p>
       <form id="login-form" autocomplete="off">
         <label>Email
@@ -28,9 +28,8 @@
             <button type="button" id="pw-eye" class="pw-eye" aria-label="Show password">show</button>
           </div>
         </label>
-        <img id="login-vora-err" class="login-vora-err" src="../assets/vora-error.png" alt="" hidden>
         <div id="login-err" class="err" hidden></div>
-        <button id="login-btn" type="submit" class="btn primary">Sign in</button>
+        <button id="login-btn" type="submit" class="btn primary big">Sign in</button>
       </form>
       <p class="hint">First time? Use the starter password from your admin. You can change it in the Workspace.</p>
     </div>
@@ -40,7 +39,7 @@
   <section id="view-track" class="view" hidden>
     <header class="top">
       <div class="brand sm">
-        <img class="vora" src="../assets/vora.svg" alt="">
+        <img class="vora" src="../assets/vora-empty.png" alt="">
         <div class="brand-name">Fitma <span>Tick</span></div>
       </div>
       <div class="who">
@@ -50,25 +49,45 @@
     </header>
 
     <main class="track-main">
+      <!-- hero timer -->
       <div class="card timer-card">
-        <img id="vora-state" class="vora-state" src="../assets/vora-empty.png" alt="">
-        <div id="status-pill" class="pill off">Not tracking</div>
+        <div class="vora-stage">
+          <img id="vora-state" class="vora-state" src="../assets/vora-empty.png" alt="">
+          <span id="status-dot" class="status-dot off"></span>
+        </div>
+        <div id="status-pill" class="pill off">Ready to track</div>
         <div id="clock" class="clock">0:00:00</div>
-        <div class="sub">tracked today</div>
+        <div class="sub">worked today</div>
 
         <label class="proj-label">Project
           <select id="project"></select>
         </label>
 
-        <button id="toggle" class="btn primary big">Start</button>
+        <div id="actions" class="actions">
+          <button id="toggle" class="btn primary big">Start tracking</button>
+        </div>
+        <div id="pausehint" class="pausehint" hidden></div>
         <div id="track-err" class="err" hidden></div>
       </div>
 
-      <div class="card meta-card">
-        <div class="meta-row"><span>Activity</span><b id="activity">—</b></div>
-        <div class="meta-row"><span>Last screenshot</span><b id="lastshot">—</b></div>
-        <div class="meta-row"><span>Next screenshot</span><b id="nextshot">—</b></div>
-        <p class="note">Fitma Tick takes a screenshot of your screen every ~10 minutes while you’re tracking, and measures how active you are. Your hours and screenshots show up for the admin in the Workspace.</p>
+      <!-- live stats -->
+      <div class="card stats-card">
+        <div class="stat">
+          <div class="stat-head"><span>Activity level</span><b id="activity">—</b></div>
+          <div class="meter"><span id="activity-bar" class="meter-fill" style="width:0%"></span></div>
+          <p class="stat-note">How much you were using the keyboard and mouse.</p>
+        </div>
+        <div class="stat-split">
+          <div class="mini">
+            <div class="mini-val" id="shots">0</div>
+            <div class="mini-lbl">Screenshots today</div>
+          </div>
+          <div class="mini">
+            <div class="mini-val" id="cap-state">Off</div>
+            <div class="mini-lbl">Screen capture</div>
+          </div>
+        </div>
+        <p class="note" id="privacy-note">Fitma Tick takes occasional screenshots and measures your activity while you’re tracking. Your hours, activity and screenshots appear for your admin in the Workspace. Screenshots pause automatically when you step away, and whenever you press Pause.</p>
       </div>
     </main>
   </section>

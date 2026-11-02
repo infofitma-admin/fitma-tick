@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('tick', {
   login: (email, password) => ipcRenderer.invoke('login', { email, password }),
   projects: () => ipcRenderer.invoke('projects'),
   start: (project) => ipcRenderer.invoke('start', { project }),
+  pause: () => ipcRenderer.invoke('pause'),
+  resume: () => ipcRenderer.invoke('resume'),
   stop: () => ipcRenderer.invoke('stop'),
   logout: () => ipcRenderer.invoke('logout'),
   getState: () => ipcRenderer.invoke('getState'),

@@ -51,6 +51,7 @@ async function apiPost(payload) {
 const T = {
   tracking: false,
   paused: false,          // auto-paused due to idle
+  manualPaused: false,    // user pressed Pause
   project: '',
   segStart: 0,            // ms, start of the current un-flushed active segment (0 = none open)
   todaySec: 0,            // active seconds logged today (local calendar day)
@@ -59,6 +60,7 @@ const T = {
   totalSamples: 0,
   lastShot: 0,
   nextShotAt: 0,
+  shotsToday: 0,          // count only (timing is intentionally never exposed)
   flushTimer: null,
   tickTimer: null,
   lastErr: ''
@@ -70,7 +72,7 @@ function localDayKey(d) {
 }
 function rollDayIfNeeded() {
   const k = localDayKey();
-  if (T.todayKey !== k) { T.todayKey = k; T.todaySec = 0; }
+  if (T.todayKey !== k) { T.todayKey = k; T.todaySec = 0; T.shotsToday = 0; }
 }
 
 // Push one active segment [startMs, endMs] to the backend as a work entry.
@@ -119,6 +121,7 @@ async function captureAndUpload() {
       await apiPost({ action: 'screenshot', deviceToken: cfg.deviceToken, image: b64, ts: new Date().toISOString(), activity: activity });
     }
     T.lastShot = Date.now();
+    T.shotsToday += 1;
   } catch (e) {
     T.lastErr = 'Screenshot: ' + (e.message || e);
   } finally {
@@ -135,6 +138,7 @@ function scheduleNextShot() {
 // ---- the per-second tick -------------------------------------------------
 function tick() {
   if (!T.tracking) return;
+  if (T.manualPaused) { pushState(); return; }  // user paused: no time, no screenshots
   rollDayIfNeeded();
   const idle = powerMonitor.getSystemIdleTime(); // seconds since last input
 
@@ -168,12 +172,12 @@ function tick() {
 function startTracking(project) {
   if (T.tracking) return;
   rollDayIfNeeded();
-  T.tracking = true; T.paused = false;
+  T.tracking = true; T.paused = false; T.manualPaused = false;
   T.project = project || T.project || '';
   T.segStart = Date.now();
   T.activeSamples = 0; T.totalSamples = 0;
   scheduleNextShot();
-  T.flushTimer = setInterval(() => { if (T.tracking && !T.paused && T.segStart) flushSegment(Date.now()); }, FLUSH_MS);
+  T.flushTimer = setInterval(() => { if (T.tracking && !T.paused && !T.manualPaused && T.segStart) flushSegment(Date.now()); }, FLUSH_MS);
   T.tickTimer = setInterval(tick, 1000);
   cfg.lastProject = T.project; saveConfig(cfg);
   updateTray(); pushState();
@@ -183,9 +187,25 @@ async function stopTracking() {
   clearInterval(T.flushTimer); clearInterval(T.tickTimer);
   T.flushTimer = T.tickTimer = null;
   const wasOpen = T.segStart;
-  T.tracking = false; T.paused = false;
+  T.tracking = false; T.paused = false; T.manualPaused = false;
   if (wasOpen) await flushSegment(Date.now());
   T.segStart = 0;
+  updateTray(); pushState();
+}
+
+// Manual pause: user-controlled, distinct from the automatic idle pause.
+function pauseTracking() {
+  if (!T.tracking || T.manualPaused) return;
+  if (T.segStart) flushSegment(Date.now());  // bank the time worked so far
+  T.manualPaused = true;
+  T.segStart = 0;
+  updateTray(); pushState();
+}
+function resumeTracking() {
+  if (!T.tracking || !T.manualPaused) return;
+  T.manualPaused = false;
+  T.segStart = Date.now();
+  scheduleNextShot();  // fresh window so resuming never triggers an instant shot
   updateTray(); pushState();
 }
 
@@ -212,17 +232,26 @@ function iconPath() {
 }
 function updateTray() {
   if (!tray) return;
-  const menu = Menu.buildFromTemplate([
-    { label: T.tracking ? (T.paused ? 'Paused (idle)' : 'Tracking…') : 'Not tracking', enabled: false },
+  const statusLabel = T.tracking
+    ? (T.manualPaused ? 'Paused' : (T.paused ? 'Away (idle)' : 'Tracking…'))
+    : 'Not tracking';
+  const items = [
+    { label: statusLabel, enabled: false },
     { type: 'separator' },
-    { label: 'Open Fitma Tick', click: () => { if (win) { win.show(); win.focus(); } } },
-    T.tracking
-      ? { label: 'Stop', click: () => stopTracking() }
-      : { label: 'Start', click: () => { if (cfg.deviceToken && T.project) startTracking(); else { if (win) { win.show(); win.focus(); } } } },
-    { type: 'separator' },
-    { label: 'Quit Fitma Tick', click: async () => { app.isQuitting = true; await stopTracking(); app.quit(); } }
-  ]);
-  tray.setToolTip('Fitma Tick' + (T.tracking ? (T.paused ? ' — paused' : ' — tracking') : ''));
+    { label: 'Open Fitma Tick', click: () => { if (win) { win.show(); win.focus(); } } }
+  ];
+  if (!T.tracking) {
+    items.push({ label: 'Start', click: () => { if (cfg.deviceToken && T.project) startTracking(); else { if (win) { win.show(); win.focus(); } } } });
+  } else {
+    items.push(T.manualPaused
+      ? { label: 'Resume', click: () => resumeTracking() }
+      : { label: 'Pause', click: () => pauseTracking() });
+    items.push({ label: 'Stop', click: () => stopTracking() });
+  }
+  items.push({ type: 'separator' });
+  items.push({ label: 'Quit Fitma Tick', click: async () => { app.isQuitting = true; await stopTracking(); app.quit(); } });
+  const menu = Menu.buildFromTemplate(items);
+  tray.setToolTip('Fitma Tick' + (T.tracking ? (T.manualPaused ? ' — paused' : (T.paused ? ' — away' : ' — tracking')) : ''));
   tray.setContextMenu(menu);
 }
 function createTray() {
@@ -243,12 +272,15 @@ function pushState() {
     empId: cfg.empId || '',
     mustChange: !!cfg.mustChange,
     tracking: T.tracking,
-    paused: T.paused,
+    paused: T.paused,            // automatic idle pause
+    manualPaused: T.manualPaused,// user-pressed pause
     project: T.project,
     todaySec: T.todaySec,
     activity: activity,
-    lastShot: T.lastShot,
-    nextShotAt: T.nextShotAt,
+    // Screenshot timing is deliberately NOT sent to the UI (anti-cheat):
+    // the user can see that capture is on and how many were taken, never when the next one is.
+    shotsActive: T.tracking && !T.paused && !T.manualPaused,
+    shotsToday: T.shotsToday,
     error: T.lastErr,
     baseUrl: baseUrl()
   });
@@ -269,6 +301,8 @@ ipcMain.handle('projects', async () => {
   } catch (e) { return []; }
 });
 ipcMain.handle('start', async (_e, { project }) => { startTracking(project); return { ok: true }; });
+ipcMain.handle('pause', async () => { pauseTracking(); return { ok: true }; });
+ipcMain.handle('resume', async () => { resumeTracking(); return { ok: true }; });
 ipcMain.handle('stop', async () => { await stopTracking(); return { ok: true }; });
 ipcMain.handle('logout', async () => {
   await stopTracking();
