@@ -97,6 +97,8 @@ label{display:block;font-weight:600;font-size:13px;color:var(--muted);margin-bot
 .meter-fill{display:block;height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,#7aa0bf,#3f5d73);transition:width .4s ease}
 .stat-note{color:var(--muted);font-size:11.5px;margin:7px 0 0}
 .stat-split{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.stat-split.three{grid-template-columns:1fr 1fr 1fr}
+.stat-split.three .mini-val{font-size:22px}
 .mini{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:14px;text-align:center}
 .mini-val{font-family:var(--display);font-size:26px;color:var(--navy);line-height:1}
 .mini-lbl{color:var(--muted);font-size:11.5px;margin-top:6px}

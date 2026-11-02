@@ -3,11 +3,12 @@
  * Fitma Tick — main process.
  * Tracks active work time + activity, takes periodic screenshots, and uploads
  * everything to the Fitma Workspace (the same Apps Script backend the portal uses).
- * Backend actions used:  login | ingest | screenshot | projects
+ * Backend actions used:  login | ingest | screenshot | projects | events | activity
  */
 const { app, BrowserWindow, Tray, Menu, ipcMain, powerMonitor, desktopCapturer, screen, nativeImage, shell, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { captureActive } = require('./capture');
 
 // ---- config --------------------------------------------------------------
 const DEFAULT_BASE_URL = 'https://script.google.com/macros/s/AKfycbzig98s-ZzuHELem-krcoma0AtcNHIxRCVKIK0LGjTex7eYKiosnRtLeFR32lPedTI/exec';
@@ -17,6 +18,8 @@ const FLUSH_MS = 60 * 1000;      // push the running segment every minute (so no
 const SHOT_MIN_MS = 9 * 60 * 1000;   // screenshot cadence ~10 min (jittered 9–12)
 const SHOT_MAX_MS = 12 * 60 * 1000;
 const SHOT_MAX_WIDTH = 1600;     // downscale screenshots to keep uploads small
+const SITE_SAMPLE_MS = 30 * 1000;    // check the active app/website every 30s while working
+const MAX_BUFFER = 600;              // cap offline buffers so memory can't grow forever
 
 const CONFIG_PATH = () => path.join(app.getPath('userData'), 'fitma-tick.json');
 function loadConfig() {
@@ -63,6 +66,12 @@ const T = {
   shotsToday: 0,          // count only (timing is intentionally never exposed)
   flushTimer: null,
   tickTimer: null,
+  siteTimer: null,
+  events: [],             // session events (start/break/resume/stop/idle) pending upload
+  acts: [],               // app/site samples pending upload
+  lastSiteKey: '',        // de-dupe consecutive identical samples
+  sitesToday: 0,
+  aiToday: 0,
   lastErr: ''
 };
 
@@ -72,7 +81,47 @@ function localDayKey(d) {
 }
 function rollDayIfNeeded() {
   const k = localDayKey();
-  if (T.todayKey !== k) { T.todayKey = k; T.todaySec = 0; T.shotsToday = 0; }
+  if (T.todayKey !== k) { T.todayKey = k; T.todaySec = 0; T.shotsToday = 0; T.sitesToday = 0; T.aiToday = 0; }
+}
+
+// ---- session events + app/site activity ----------------------------------
+// A "session event" marks exactly when someone started, took a break, came
+// back, went idle, or stopped — so the admin can see if they left early.
+function logEvent(type) {
+  T.events.push({ type: type, ts: new Date().toISOString(), project: T.project || '' });
+  if (T.events.length > MAX_BUFFER) T.events.splice(0, T.events.length - MAX_BUFFER);
+  flushEvents();
+}
+async function flushEvents() {
+  if (!T.events.length || !cfg.deviceToken) return;
+  const batch = T.events.slice();
+  try {
+    await apiPost({ action: 'events', deviceToken: cfg.deviceToken, events: batch });
+    T.events.splice(0, batch.length); // drop only what we sent
+  } catch (e) { /* keep buffered; retried on next event or flush */ }
+}
+
+// Take one reading of the foreground app/website and queue it for upload.
+async function sampleSite() {
+  if (!T.tracking || T.paused || T.manualPaused) return;
+  let r = null;
+  try { r = await captureActive(); } catch (e) { r = null; }
+  if (!r || (!r.app && !r.title)) return;
+  const key = (r.app || '') + '|' + (r.url || r.title || '');
+  if (key === T.lastSiteKey) return;  // same window as last sample — skip the duplicate
+  T.lastSiteKey = key;
+  T.acts.push({ ts: new Date().toISOString(), app: r.app, title: r.title, url: r.url, host: r.host || '', ai: !!r.ai, project: T.project || '' });
+  if (T.acts.length > MAX_BUFFER) T.acts.splice(0, T.acts.length - MAX_BUFFER);
+  T.sitesToday += 1; if (r.ai) T.aiToday += 1;
+  pushState();
+}
+async function flushActs() {
+  if (!T.acts.length || !cfg.deviceToken) return;
+  const batch = T.acts.slice();
+  try {
+    await apiPost({ action: 'activity', deviceToken: cfg.deviceToken, items: batch });
+    T.acts.splice(0, batch.length);
+  } catch (e) { /* keep buffered */ }
 }
 
 // Push one active segment [startMs, endMs] to the backend as a work entry.
@@ -147,6 +196,7 @@ function tick() {
     if (!T.paused && T.segStart) {
       const idleStartMs = Date.now() - idle * 1000;
       flushSegment(Math.max(T.segStart, idleStartMs));
+      logEvent('idle');   // record that they went away (no input)
     }
     T.paused = true;
   } else {
@@ -154,6 +204,8 @@ function tick() {
       // user is back: resume with a fresh segment
       T.paused = false;
       T.segStart = Date.now();
+      T.lastSiteKey = '';
+      logEvent('active');
     }
     // count this active second
     T.todaySec += 1;
@@ -177,35 +229,48 @@ function startTracking(project) {
   T.segStart = Date.now();
   T.activeSamples = 0; T.totalSamples = 0;
   scheduleNextShot();
-  T.flushTimer = setInterval(() => { if (T.tracking && !T.paused && !T.manualPaused && T.segStart) flushSegment(Date.now()); }, FLUSH_MS);
+  T.lastSiteKey = '';
+  T.flushTimer = setInterval(() => {
+    if (T.tracking && !T.paused && !T.manualPaused && T.segStart) flushSegment(Date.now());
+    flushEvents(); flushActs();
+  }, FLUSH_MS);
   T.tickTimer = setInterval(tick, 1000);
+  T.siteTimer = setInterval(sampleSite, SITE_SAMPLE_MS);
   cfg.lastProject = T.project; saveConfig(cfg);
+  logEvent('start');
+  sampleSite();                 // grab the first reading right away
   updateTray(); pushState();
 }
 async function stopTracking() {
   if (!T.tracking) return;
-  clearInterval(T.flushTimer); clearInterval(T.tickTimer);
-  T.flushTimer = T.tickTimer = null;
+  clearInterval(T.flushTimer); clearInterval(T.tickTimer); clearInterval(T.siteTimer);
+  T.flushTimer = T.tickTimer = T.siteTimer = null;
   const wasOpen = T.segStart;
   T.tracking = false; T.paused = false; T.manualPaused = false;
   if (wasOpen) await flushSegment(Date.now());
   T.segStart = 0;
+  logEvent('stop');             // record exactly when they stopped (and left)
+  await flushActs();            // send any remaining site samples
   updateTray(); pushState();
 }
 
-// Manual pause: user-controlled, distinct from the automatic idle pause.
+// Manual break: user-controlled, distinct from the automatic idle pause.
 function pauseTracking() {
   if (!T.tracking || T.manualPaused) return;
   if (T.segStart) flushSegment(Date.now());  // bank the time worked so far
   T.manualPaused = true;
   T.segStart = 0;
+  logEvent('break');
   updateTray(); pushState();
 }
 function resumeTracking() {
   if (!T.tracking || !T.manualPaused) return;
   T.manualPaused = false;
   T.segStart = Date.now();
+  T.lastSiteKey = '';
   scheduleNextShot();  // fresh window so resuming never triggers an instant shot
+  logEvent('resume');
+  sampleSite();
   updateTray(); pushState();
 }
 
@@ -233,7 +298,7 @@ function iconPath() {
 function updateTray() {
   if (!tray) return;
   const statusLabel = T.tracking
-    ? (T.manualPaused ? 'Paused' : (T.paused ? 'Away (idle)' : 'Tracking…'))
+    ? (T.manualPaused ? 'On break' : (T.paused ? 'Away (idle)' : 'Tracking…'))
     : 'Not tracking';
   const items = [
     { label: statusLabel, enabled: false },
@@ -244,14 +309,14 @@ function updateTray() {
     items.push({ label: 'Start', click: () => { if (cfg.deviceToken && T.project) startTracking(); else { if (win) { win.show(); win.focus(); } } } });
   } else {
     items.push(T.manualPaused
-      ? { label: 'Resume', click: () => resumeTracking() }
-      : { label: 'Pause', click: () => pauseTracking() });
+      ? { label: 'End break', click: () => resumeTracking() }
+      : { label: 'Break', click: () => pauseTracking() });
     items.push({ label: 'Stop', click: () => stopTracking() });
   }
   items.push({ type: 'separator' });
   items.push({ label: 'Quit Fitma Tick', click: async () => { app.isQuitting = true; await stopTracking(); app.quit(); } });
   const menu = Menu.buildFromTemplate(items);
-  tray.setToolTip('Fitma Tick' + (T.tracking ? (T.manualPaused ? ' — paused' : (T.paused ? ' — away' : ' — tracking')) : ''));
+  tray.setToolTip('Fitma Tick' + (T.tracking ? (T.manualPaused ? ' — on break' : (T.paused ? ' — away' : ' — tracking')) : ''));
   tray.setContextMenu(menu);
 }
 function createTray() {
@@ -281,6 +346,8 @@ function pushState() {
     // the user can see that capture is on and how many were taken, never when the next one is.
     shotsActive: T.tracking && !T.paused && !T.manualPaused,
     shotsToday: T.shotsToday,
+    sitesToday: T.sitesToday,
+    aiToday: T.aiToday,
     error: T.lastErr,
     baseUrl: baseUrl()
   });

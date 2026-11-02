@@ -91,10 +91,10 @@ function renderActions(m) {
   if (!state.tracking) {
     box.innerHTML = '<button class="btn primary big" data-act="start">Start tracking</button>';
   } else if (m === 'paused') {
-    box.innerHTML = '<button class="btn resume big" data-act="resume">Resume</button>' +
+    box.innerHTML = '<button class="btn resume big" data-act="resume">End break</button>' +
                     '<button class="btn stop big" data-act="stop">Stop</button>';
   } else {
-    box.innerHTML = '<button class="btn pause big" data-act="pause">Pause</button>' +
+    box.innerHTML = '<button class="btn pause big" data-act="pause">Break</button>' +
                     '<button class="btn stop big" data-act="stop">Stop</button>';
   }
 }
@@ -113,7 +113,7 @@ function render() {
   // status pill + dot
   const pill = $('status-pill'); const dot = $('status-dot');
   if (m === 'tracking') { pill.className = 'pill on'; pill.textContent = 'Tracking'; dot.className = 'status-dot on'; }
-  else if (m === 'paused') { pill.className = 'pill paused'; pill.textContent = 'Paused'; dot.className = 'status-dot paused'; }
+  else if (m === 'paused') { pill.className = 'pill paused'; pill.textContent = 'On break'; dot.className = 'status-dot paused'; }
   else if (m === 'away') { pill.className = 'pill paused'; pill.textContent = 'Away — you’re idle'; dot.className = 'status-dot paused'; }
   else { pill.className = 'pill off'; pill.textContent = 'Ready to track'; dot.className = 'status-dot off'; }
 
@@ -124,7 +124,7 @@ function render() {
 
   // pause hint
   const ph = $('pausehint');
-  if (m === 'paused') { ph.textContent = 'Paused — your time and screenshots are stopped. Press Resume when you’re back.'; ph.hidden = false; }
+  if (m === 'paused') { ph.textContent = 'On break — your time, screenshots and activity are paused. Press End break when you’re back.'; ph.hidden = false; }
   else if (m === 'away') { ph.textContent = 'You’ve been idle, so tracking paused automatically. Move the mouse to continue.'; ph.hidden = false; }
   else { ph.hidden = true; }
 
@@ -135,6 +135,8 @@ function render() {
 
   // screenshots: count only — timing is intentionally hidden (anti-cheat)
   $('shots').textContent = state.shotsToday || 0;
+  const sitesEl = $('sites');
+  if (sitesEl) sitesEl.textContent = (state.sitesToday || 0) + (state.aiToday ? (' · ' + state.aiToday + ' AI') : '');
   $('cap-state').textContent = state.shotsActive ? 'On' : 'Off';
 
   const err = $('track-err');
