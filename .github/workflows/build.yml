@@ -7,6 +7,12 @@ on:
   workflow_dispatch: {}
   push:
     tags: ['v*']
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'build/**'
+      - 'package.json'
+      - '.github/workflows/build.yml'
 
 permissions:
   contents: write
