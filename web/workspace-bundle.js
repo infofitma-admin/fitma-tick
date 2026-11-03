@@ -425,20 +425,28 @@ function setMonths(dataEndKeys){
   state.HOLIDAYS = new Set(SETTINGS.holidays || []);
 }
 
-// ---------- server API via google.script.run ----------
+// ---------- server API ----------
+// Works two ways from the SAME bundle:
+//   • inside the Apps Script web app  -> google.script.run.apiCall(...)   (unchanged)
+//   • on a fast static host (GitHub Pages) -> cross-origin fetch() to the /exec URL
+// The server routes a {action:'api', path, body, token} POST through the same apiCall().
+const FW_EXEC = (typeof window!=='undefined' && window.FW_EXEC) || 'https://script.google.com/macros/s/AKfycbxLC4cKnYrrO2C9Nk0czFRDW0IdfsQNTwPCQZXOqAY7DqkVarAGOV9DOqQeDPlQAWPu/exec';
 let TOKEN = ''; try { TOKEN = localStorage.getItem('fw:tok') || ''; } catch(e){}
 function setToken(t){ TOKEN = t || ''; try { if (t) localStorage.setItem('fw:tok', t); else localStorage.removeItem('fw:tok'); } catch(e){} }
 function api(path, body){
   return new Promise((resolve, reject)=>{
-    if (typeof google === 'undefined' || !google.script || !google.script.run){
-      const e = new Error('The workspace couldn’t reach the server. Refresh and try again.'); e.status = 0; return reject(e);
+    const ok = (res)=>{ let out; try { out = JSON.parse(res); } catch(e){ out = { status:500, body:{ error:'Unexpected response.' } }; }
+      if (out.status >= 200 && out.status < 300) resolve(out.body);
+      else { const e = new Error((out.body && out.body.error) || `Request failed (${out.status})`); e.status = out.status; reject(e); } };
+    const bad = ()=>{ const e = new Error('The workspace didn’t respond. Check your connection and try again.'); e.status = 0; reject(e); };
+    if (typeof google !== 'undefined' && google.script && google.script.run){
+      google.script.run.withSuccessHandler(ok).withFailureHandler(bad)
+        .apiCall(path, body ? JSON.stringify(body) : '', TOKEN);
+    } else {
+      // Simple cross-origin POST (text/plain body → no CORS preflight; GAS reads e.postData.contents)
+      fetch(FW_EXEC, { method:'POST', body: JSON.stringify({ action:'api', path:path, body: body ? JSON.stringify(body) : '', token: TOKEN }) })
+        .then(r=>r.text()).then(ok).catch(bad);
     }
-    google.script.run
-      .withSuccessHandler(res=>{ let out; try { out = JSON.parse(res); } catch(e){ out = { status:500, body:{ error:'Unexpected response.' } }; }
-        if (out.status >= 200 && out.status < 300) resolve(out.body);
-        else { const e = new Error((out.body && out.body.error) || `Request failed (${out.status})`); e.status = out.status; reject(e); } })
-      .withFailureHandler(err=>{ const e = new Error('The workspace didn’t respond. Check your connection and try again.'); e.status = 0; reject(e); })
-      .apiCall(path, body ? JSON.stringify(body) : '', TOKEN);
   });
 }
 function applyData(d){
