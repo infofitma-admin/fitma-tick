@@ -1753,22 +1753,11 @@ function showForgot(){
   o=document.createElement('div'); o.className='overlay forgot'; o.innerHTML=`<div class="sheet" style="max-width:400px" data-stop="1">
     <div class="sheet-head"><span class="label">Password help</span><h3>Reset your password</h3></div>
     <div style="padding:20px;display:grid;gap:12px">
-      <p class="muted small">Enter the email your account uses. If it is registered, we will send a temporary password you can sign in with, then set your own.</p>
-      <div class="field"><label for="fg-email">Email</label><input id="fg-email" type="email" placeholder="name@gmail.com" autocapitalize="off" autocorrect="off" spellcheck="false" class="fchip" style="width:100%;min-width:0"></div>
-      <p class="hint" id="fg-msg"></p>
-      <div style="display:flex;gap:8px"><button class="btn" data-close style="flex:1">Cancel</button><button class="btn primary" id="fg-send" style="flex:1">Send temporary password</button></div>
+      <p class="muted small">For your security, passwords are reset by your admin. Message your admin and they'll set a new password for you right away and share it with you. You can change it to your own once you're signed in.</p>
+      <button class="btn primary" data-close>Got it</button>
     </div></div>`;
   o.addEventListener('click', ev=>{ if(ev.target.closest('[data-close]')||!ev.target.closest('[data-stop]')) o.remove(); });
   document.body.appendChild(o);
-  const msgEl=o.querySelector('#fg-msg'); const say=(t,bad)=>{ if(msgEl){ msgEl.textContent=t; msgEl.className='hint'+(bad?' err':''); } };
-  o.querySelector('#fg-send').addEventListener('click', async ()=>{
-    const email=(o.querySelector('#fg-email').value||'').trim().toLowerCase();
-    if(!/^\S+@\S+\.\S+$/.test(email)) return say('Enter a valid email address.', true);
-    const btn=o.querySelector('#fg-send'); btn.disabled=true; say('Sending\u2026');
-    try{ await api('/forgot',{email}); o.remove(); toast('If that email is registered, a temporary password is on its way. Check your inbox.'); }
-    catch(e){ btn.disabled=false; say(e.message||'Could not send right now. Try again.', true); }
-  });
-  try{ o.querySelector('#fg-email').focus(); }catch(_e){}
 }
 function showAddMember(){
   let o=document.querySelector('.overlay.addmem'); if(o) o.remove();
@@ -1776,7 +1765,7 @@ function showAddMember(){
   o=document.createElement('div'); o.className='overlay addmem'; o.innerHTML=`<div class="sheet" style="max-width:470px" data-stop="1">
     <div class="sheet-head"><span class="label">Team &amp; access</span><h3>Add a team member</h3></div>
     <div style="padding:20px;display:grid;gap:12px">
-      <p class="muted small">Creates their account and emails them a starter password. They set their own on first sign-in, and can use it for Fitma Tick too.</p>
+      <p class="muted small">Creates their account and shows you a starter password to share with them. They set their own on first sign-in, and can use it for Fitma Tick too.</p>
       <div class="field"><label for="am-name">Full name</label><input id="am-name" type="text" ${inp}></div>
       <div class="field"><label for="am-email">Sign-in email</label><input id="am-email" type="email" placeholder="name@gmail.com" autocapitalize="off" autocorrect="off" spellcheck="false" ${inp}></div>
       <div class="field"><label for="am-pos">Position</label><input id="am-pos" type="text" placeholder="e.g. Intern" ${inp}></div>
@@ -1799,7 +1788,7 @@ function showAddMember(){
     if(email===ADMIN.email) return say('That is the admin address. Use the member\u2019s own email.', true);
     if(TEAM.find(x=>accessEmail(x)===email)) return say('That email already has an account.', true);
     const btn=o.querySelector('#am-save'); btn.disabled=true; say('Creating\u2026');
-    try{ await api('/addmember',{name,email,plan,gender,position}); o.remove(); await loadData(); render(); toast(name+' added. A starter password was emailed to them.'); }
+    try{ const r=await api('/addmember',{name,email,plan,gender,position}); o.remove(); await loadData(); render(); if(r&&r.password){ showReset({name:name}, r.password); } else { toast(name+' added.'); } }
     catch(e){ btn.disabled=false; say(e.message||'Could not add the member.', true); }
   });
   try{ o.querySelector('#am-name').focus(); }catch(_e){}
