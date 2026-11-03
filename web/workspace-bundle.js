@@ -661,7 +661,7 @@ function renderChooser(){
 //  SHELL
 // =========================================================================
 const EMP_NAV = [['home','Home','home'],['attendance','Attendance','att'],['projects','Projects','proj'],['reviews','Reviews','rev'],['download','Fitma Tick','dl'],['profile','Profile','prof']];
-const ADM_NAV = [['pulse','Team pulse','home'],['compare','Compare','cmp'],['teamatt','Attendance','att'],['teamproj','Projects','proj'],['teamrev','Reviews','rev'],['shots','Screenshots','eye'],['activity','Activity & sites','cmp'],['access','Team & access','key'],['settings','Settings','set']];
+const ADM_NAV = [['pulse','Team pulse','home'],['compare','Compare','cmp'],['teamatt','Attendance','att'],['teamproj','Projects','proj'],['teamrev','Reviews','rev'],['shots','Screenshots','eye'],['activity','Activity & sites','cmp'],['access','Team & access','key'],['payslips','Payslips','rev'],['settings','Settings','set']];
 function renderApp(){
   const adminHome = isAdmin() && !S.viewing;
   const nav = adminHome ? ADM_NAV : (isAdmin() && S.viewing ? [['eval','Evaluation','cmp'], ...EMP_NAV] : EMP_NAV);
@@ -690,7 +690,7 @@ function renderApp(){
   </div>${S.preview?renderPreview():''}`;
 }
 function route(){
-  if (isAdmin() && !S.viewing) return ({pulse:aPulse,compare:aCompare,teamatt:aAtt,teamproj:aProj,teamrev:aRev,shots:aShots,activity:aActivity,access:aAccess,settings:aSettings}[S.view]||aPulse)();
+  if (isAdmin() && !S.viewing) return ({pulse:aPulse,compare:aCompare,teamatt:aAtt,teamproj:aProj,teamrev:aRev,shots:aShots,activity:aActivity,access:aAccess,payslips:aPayslips,settings:aSettings}[S.view]||aPulse)();
   const e = subject();
   if (isAdmin() && S.viewing && (S.view==='eval' || !S.view)) return aEval(e);
   return ({home:eHome,attendance:eAtt,projects:eProj,reviews:eRev,download:pDownload,profile:eProfile}[S.view]||eHome)(e);
@@ -1200,35 +1200,217 @@ function pDownload(emp){
 // =========================================================================
 //  REPORT (PDF)
 // =========================================================================
+// ===== Payslip generator (admin) =====
+function fmtLKR(n){ n=Number(n)||0; return n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function loadPaySaved(id){ try{ return JSON.parse(localStorage.getItem('fw:pay:'+id)||'{}'); }catch(e){ return {}; } }
+function savePaySaved(id,d){ try{ localStorage.setItem('fw:pay:'+id, JSON.stringify(d)); }catch(e){} }
+function payslipHTML(emp, d){
+  const p=profileOf(emp);
+  const navy='#283544', mut='#6b7c8c', line='#e4e8ec', ink='#1e2834';
+  const serif='font-family:var(--display),Georgia,serif';
+  const E=[['Basic Salary',d.basic],['Overtime Allowance',d.ot],['Performance Bonus',d.bonus],['Other Allowance',d.other]];
+  const D=[['Performance Deduction',d.dPerf],['Responsibility / Conduct Deduction',d.dResp],['Other Deduction',d.dOther]];
+  const gross=(Number(d.basic)||0)+(Number(d.ot)||0)+(Number(d.bonus)||0)+(Number(d.other)||0);
+  const totD=(Number(d.dPerf)||0)+(Number(d.dResp)||0)+(Number(d.dOther)||0);
+  const net=gross-totD;
+  const row=(no,lbl,amt,i)=>'<tr style="background:'+(i%2?'#f2f5f7':'#fff')+'"><td style="padding:9px 12px;color:'+mut+';width:40px">'+no+'</td><td style="padding:9px 12px">'+lbl+'</td><td style="padding:9px 12px;color:'+mut+'">-</td><td style="padding:9px 12px;text-align:right;font-weight:700">'+fmtLKR(amt)+'</td></tr>';
+  const thead=t=>'<tr style="background:'+navy+';color:#fff;text-align:left"><th style="padding:9px 12px;width:40px">No.</th><th style="padding:9px 12px">'+t+'</th><th style="padding:9px 12px">Remarks</th><th style="padding:9px 12px;text-align:right">Amount (LKR)</th></tr>';
+  const dl=(a,b)=>'<div style="display:flex;justify-content:space-between;padding:7px 0;font-size:12px"><span style="color:'+mut+'">'+a+'</span><span style="font-weight:700">'+b+'</span></div>';
+  const pageCss='width:794px;min-height:1123px;background:#fff;color:'+ink+';font-family:var(--body),\'Segoe UI\',system-ui,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;padding:0;margin:0 auto 16px;border:0;box-shadow:none';
+  return '<div class="rpt-page" style="'+pageCss+'">'
+    +'<div style="background:'+navy+';color:#fff;padding:30px 40px;display:flex;justify-content:space-between;align-items:center">'
+      +'<img src="'+LOGO_WHITE+'" alt="" style="width:92px;height:92px;object-fit:contain">'
+      +'<div style="text-align:right"><div style="'+serif+';font-size:40px;letter-spacing:1px">PAYSLIP</div><div style="'+serif+';font-size:18px;margin-top:2px">Fitma</div><div style="font-size:11px;color:#cdd8e2;margin-top:4px">info.fitma@gmail.com</div><div style="font-size:11px;color:#cdd8e2">www.fitma.lk</div></div></div>'
+    +'<div style="background:'+navy+';color:#fff;padding:0 40px 14px;display:flex;justify-content:flex-end;gap:12px;font-size:11.5px"><span style="color:#9fb1c2">Date:</span><b>'+esc(d.date||'')+'</b></div>'
+    +'<div style="padding:26px 40px 90px">'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-bottom:26px">'
+        +'<div><div style="font-size:11px;letter-spacing:1px;font-weight:700;color:'+navy+';border-bottom:2px solid '+line+';padding-bottom:6px;margin-bottom:10px">EMPLOYEE DETAILS</div>'
+          +payRow('Employee Name',esc(p.name),mut)+payRow('Employee ID',emp.id,mut)+payRow('Designation',esc(d.designation||p.position||''),mut)+payRow('Bank Name',esc(d.bank||''),mut)+payRow('Account Number',esc(d.account||''),mut)+'</div>'
+        +'<div><div style="font-size:11px;letter-spacing:1px;font-weight:700;color:'+navy+';border-bottom:2px solid '+line+';padding-bottom:6px;margin-bottom:10px">PAYSLIP DETAILS</div>'
+          +payRow('Pay From',esc(d.from||''),mut)+payRow('Pay To',esc(d.to||''),mut)+payRow('Payslip No.',esc(d.no||''),mut)+payRow('Payment Method',esc(d.method||'Bank Transfer'),mut)+payRow('Currency',esc(d.currency||'LKR'),mut)+'</div>'
+      +'</div>'
+      +'<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:18px"><thead>'+thead('Earnings')+'</thead><tbody>'+E.map((r,i)=>row(i+1,r[0],r[1],i)).join('')+'</tbody></table>'
+      +'<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:22px"><thead>'+thead('Deductions')+'</thead><tbody>'+D.map((r,i)=>row(i+1,r[0],r[1],i)).join('')+'</tbody></table>'
+      +'<div style="display:grid;grid-template-columns:1fr 360px;gap:24px;align-items:start">'
+        +'<div style="'+serif+';font-size:26px;color:'+ink+';padding-top:6px">Thank you for your hard work!</div>'
+        +'<div>'+dl('Gross Earnings',fmtLKR(gross))+dl('Total Deductions',fmtLKR(totD))
+          +'<div style="display:flex;justify-content:space-between;align-items:center;background:'+navy+';color:#fff;padding:12px 14px;border-radius:6px;margin-top:6px"><span style="font-weight:700;font-size:13px">NET SALARY</span><span style="'+serif+';font-size:22px">'+fmtLKR(net)+'</span></div></div>'
+      +'</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:40px;font-size:11px">'
+        +'<div><div style="color:'+mut+'">Authorised by</div><div style="font-weight:700;margin-top:26px;border-top:1px solid '+line+';padding-top:8px">HR Department - Fitma Team</div></div>'
+        +'<div style="color:'+mut+';text-align:right;line-height:1.6">Your salary will be credited to your bank account within 24-48 hours of this payslip. For any questions, please contact us at info.fitma@gmail.com.</div>'
+      +'</div>'
+    +'</div>'
+    +'<div style="position:absolute;left:0;right:0;bottom:0;background:'+navy+';color:#fff;padding:12px 40px;display:flex;justify-content:space-between;font-size:11px"><span>info.fitma@gmail.com | www.fitma.lk | +94 76 650 1832</span><b>Private &amp; Confidential</b></div>'
+    +'</div>';
+}
+function payRow(l,v,mut){ return '<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:'+mut+'">'+l+'</span><span style="font-weight:600;text-align:right">'+v+'</span></div>'; }
+function aPayslips(){
+  const emp = S.payEmp ? empById(S.payEmp) : (TEAM[0]||null);
+  const chips = `<div class="chips">${TEAM.map(e=>`<button class="fchip ${(emp&&emp.id===e.id)?'on':''}" data-action="pay-emp" data-e="${e.id}">${avatar(e,'sm')}${esc(e.name)}</button>`).join('')}</div>`;
+  if(!emp) return `<div class="pagehead"><div><h1>Payslips</h1></div></div>${chips}<div class="card"><p class="muted">Add a team member first.</p></div>`;
+  const p=profileOf(emp), sv=loadPaySaved(emp.id);
+  const today=new Date(), dstr=`${pad(today.getDate())}-${MN[today.getMonth()].slice(0,3)}-${today.getFullYear()}`;
+  const F=(id,label,val,ph='')=>`<label style="display:grid;gap:4px"><span class="muted small">${label}</span><input class="fchip" id="${id}" type="text" value="${esc(val==null?'':val)}" placeholder="${ph}" style="width:100%;min-width:0"></label>`;
+  const money=(id,label,val)=>`<label style="display:grid;gap:4px"><span class="muted small">${label}</span><input class="fchip pay-amt" id="${id}" type="number" step="0.01" value="${val==null?'':val}" placeholder="0.00" style="width:100%;min-width:0"></label>`;
+  const net0=(+sv.basic||0)+(+sv.ot||0)+(+sv.bonus||0)+(+sv.other||0)-((+sv.dPerf||0)+(+sv.dResp||0)+(+sv.dOther||0));
+  return `<div class="pagehead"><div><h1>Payslips</h1><p>Enter this month's figures and download a PDF payslip in the Fitma template. Bank details are remembered on this computer only.</p></div></div>
+  ${chips}
+  <div class="card"><form id="payslip-form" onsubmit="return false">
+    <div class="grid g2" style="gap:14px">
+      ${F('ps-desig','Designation',sv.designation||p.position||'')}
+      ${F('ps-no','Payslip No.',sv.no||('41'+emp.id))}
+      ${F('ps-bank','Bank Name',sv.bank||'')}
+      ${F('ps-acc','Account Number',sv.account||'')}
+      ${F('ps-from','Pay From (e.g. 21-Oct-2026)',sv.from||'')}
+      ${F('ps-to','Pay To (e.g. 31-Oct-2026)',sv.to||'')}
+      ${F('ps-date','Payslip Date',sv.date||dstr)}
+      ${F('ps-method','Payment Method',sv.method||'Bank Transfer')}
+    </div>
+    <h3 style="margin:18px 0 8px">Earnings (LKR)</h3>
+    <div class="grid g2" style="gap:14px">${money('ps-basic','Basic Salary',sv.basic)}${money('ps-ot','Overtime Allowance',sv.ot)}${money('ps-bonus','Performance Bonus',sv.bonus)}${money('ps-other','Other Allowance',sv.other)}</div>
+    <h3 style="margin:18px 0 8px">Deductions (LKR)</h3>
+    <div class="grid g2" style="gap:14px">${money('ps-dperf','Performance Deduction',sv.dPerf)}${money('ps-dresp','Responsibility / Conduct Deduction',sv.dResp)}${money('ps-dother','Other Deduction',sv.dOther)}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;flex-wrap:wrap;gap:12px">
+      <div class="muted">Net salary: <b id="ps-net" style="color:var(--ink);font-size:18px">LKR ${fmtLKR(net0)}</b></div>
+      <div style="display:flex;gap:8px"><button class="btn" data-action="pay-preview" data-e="${emp.id}">${icon('eye',15)} Preview</button><button class="btn primary" data-action="pay-download" data-e="${emp.id}">${icon('dl',15)} Download payslip PDF</button></div>
+    </div>
+  </form></div>`;
+}
+function payData(){
+  const g=id=>{ const el=document.getElementById(id); return el?el.value.trim():''; };
+  const num=id=>{ const el=document.getElementById(id); return el?(parseFloat(el.value)||0):0; };
+  return { designation:g('ps-desig'), bank:g('ps-bank'), account:g('ps-acc'), no:g('ps-no'), from:g('ps-from'), to:g('ps-to'), date:g('ps-date'), method:g('ps-method')||'Bank Transfer', currency:'LKR',
+    basic:num('ps-basic'), ot:num('ps-ot'), bonus:num('ps-bonus'), other:num('ps-other'), dPerf:num('ps-dperf'), dResp:num('ps-dresp'), dOther:num('ps-dother') };
+}
+function payNetUpdate(){ const el=document.getElementById('ps-net'); if(!el) return; const d=payData(); const net=(d.basic+d.ot+d.bonus+d.other)-(d.dPerf+d.dResp+d.dOther); el.textContent='LKR '+fmtLKR(net); }
+function payPreview(eid){
+  const emp=empById(eid); if(!emp) return; const d=payData(); savePaySaved(eid,d);
+  let o=document.querySelector('.overlay.payprev'); if(o)o.remove();
+  o=document.createElement('div'); o.className='overlay payprev';
+  o.innerHTML=`<div class="modal" data-stop="1" style="max-width:880px;width:96vw"><div class="modal-head"><div><span class="label">Payslip preview</span><h3>${esc(emp.name)}</h3></div><button class="btn sm" data-close>Close</button></div><div class="modal-body" style="background:#9aa5ad;overflow:auto"><div id="pp-scale" style="transform-origin:top left">${payslipHTML(emp,d)}</div></div><div class="modal-foot"><span class="hint">A4 · 1 page</span><button class="btn primary" data-action="pay-download" data-e="${emp.id}">${icon('dl',15)} Download PDF</button></div></div>`;
+  o.addEventListener('click',ev=>{ if(ev.target.closest('[data-close]')||!ev.target.closest('[data-stop]')) o.remove(); });
+  document.body.appendChild(o);
+  const box=o.querySelector('.modal-body'), sc=o.querySelector('#pp-scale'); const k=Math.min(1,(box.clientWidth-20)/794); sc.style.transform='scale('+k+')'; sc.style.height=(1123*k+20)+'px';
+}
+async function payDownload(eid){
+  const emp=empById(eid); if(!emp) return; const d=payData(); savePaySaved(eid,d);
+  if (!window.html2canvas || !window.jspdf){ try{ await ensurePdfLibs(); }catch(_e){} if(!window.html2canvas||!window.jspdf) return toast('The PDF tools did not load. Please refresh and try again.'); }
+  try{
+    await (document.fonts?.ready||Promise.resolve());
+    const stage=document.getElementById('rpt-stage'); stage.innerHTML=payslipHTML(emp,d);
+    const pdf=new window.jspdf.jsPDF({unit:'mm',format:'a4',compress:true});
+    const pg=stage.querySelector('.rpt-page');
+    const c=await window.html2canvas(pg,{scale:2,backgroundColor:'#ffffff',logging:false}); pdf.addImage(c.toDataURL('image/jpeg',.92),'JPEG',0,0,210,297);
+    stage.innerHTML='';
+    const blob=pdf.output('blob'), filename=`Payslip-${emp.name.replace(/\s+/g,'-')}-${(d.to||monthLabel(CUR)).replace(/[^0-9A-Za-z-]/g,'')}.pdf`;
+    await dlReady;
+    if (downloadsNS){ try{ await downloadsNS.save({filename,data:blob}); toast('Payslip saved'); }catch(err){ toast(err&&err.code==='declined'?'Download cancelled':'Downloads aren’t available in this view.'); } }
+    else if (downloadsNS===undefined) pdf.save(filename);
+    else toast('Downloads aren’t available in this view.');
+    document.querySelector('.overlay.payprev')?.remove();
+  }catch(err){ toast('Could not build the payslip. Try again.'); }
+}
+
+// ===== New Monthly Progress Report (finalized template) =====
+function rptPunct(lateMin){
+  if(lateMin<=0) return ['Excellent','#2e8a68','#e2f2eb'];
+  if(lateMin<=5) return ['Needs improvement ('+lateMin+' min)','#b97c12','#fdf3c9'];
+  return ['At risk ('+lateMin+' min late)','#d0393b','#fbe7e7'];
+}
+function rptChip(st){
+  const s=String(st||'—'); let c='#3f5d73',b='#e6edf3';
+  if(/complete|met|early|done|approv/i.test(s)){c='#2e8a68';b='#e2f2eb';}
+  else if(/hold|pending|paused/i.test(s)){c='#b97c12';b='#fdf3c9';}
+  else if(/late|risk|overdue|miss/i.test(s)){c='#d0393b';b='#fbe7e7';}
+  else if(/progress/i.test(s)){c='#3f5d73';b='#e6edf3';}
+  return '<span style="display:inline-block;padding:4px 10px;border-radius:999px;font-size:10px;font-weight:700;color:'+c+';background:'+b+';white-space:nowrap">'+esc(s)+'</span>';
+}
+function firstDow(ym, dow){ const n=daysIn(ym); for(let i=1;i<=n;i++){ const d=dateOf(ym,i); if(d.getDay()===dow) return d; } return dateOf(ym,1); }
 function reportPages(emp, ym){
-  const f=feedback(emp,ym), m=f.m, s=m.scores, p=profileOf(emp), [g]=grade(s.overall), issued=unlockDate(ym);
-  const cc={ontime:'#cfe8dc',late:'#fbe9a6',early:'#ddd2f5',lateearly:'#ddd2f5',leave:'#f6c3c3',covered:'#cfdbe6',flex:'#dbe3ea',off:'#eef1f4',weekend:'#eef1f4',future:'#f7f8fa'};
-  const band=`<div class="rpt-band"><img class="ghost" src="${LOGO_WHITE}" alt=""><div class="wm"><img src="${LOGO_WHITE}" alt="">Fitma</div><div class="tt"><div>Monthly performance report</div><div>${monthLabel(ym)}</div></div></div>`;
-  const foot=n=>`<div class="rpt-foot"><span>Fitma · fitma.lk · Confidential to ${esc(p.name)} and Fitma management</span><span>Issued ${fmtD(issued)} ${issued.getFullYear()} · Page ${n} of 2</span></div>`;
-  const kp = m.founder ? [['Score',Math.round(s.overall)],['Hours logged',fmtH(m.trackedMin)],['Days worked',m.present],['Tasks assigned',m.tasks.length],['Completed',m.tasksDone],['On time',`${m.tasksOnTime}/${m.tasksDue}`]]
-    : [['Punctuality',pct(s.punctuality)],['Attendance',`${m.present}/${m.working} days`],['Hours',`${Math.floor(m.trackedMin/60)}/${Math.round(m.requiredMin/60)} h`],['Full shifts',pct(s.completion)],['Leave made up',m.leave?pct(m.coverRate*100):'No leave'],['On-time tasks',`${m.tasksOnTime}/${m.tasksDue}`]];
-  const att = m.founder ? [['Days with tracked time',m.present],['Total hours logged',fmtH(m.trackedMin)],['Schedule','Flexible (founder)']]
-    : [['Working days',m.working],['Days present',m.present],['Leave days',`${m.leave}${m.reasons.length?' ('+[...new Set(m.reasons)].join(', ')+')':''}`],['Time missed on leave',fmtH(m.lostMin)],['Time made up',fmtH(m.coverMin)],['Late starts',`${m.lateCount} (${m.lateMin} min in total)`],['Left early',`${m.earlyCount} (${m.earlyMin} min short)`],['Hours tracked / required',`${fmtH(m.trackedMin)} / ${fmtH(m.requiredMin)}`],['Extra time',fmtH(m.overtimeMin)]];
-  const p1=`<div class="rpt-page">${band}<div class="rpt-body">
-    <div class="rpt-who"><div><div class="rpt-h">Team member</div><h2>${esc(p.name)}</h2><div style="color:#65778a;margin-top:2px">${esc(p.position||'Team member')}</div></div>
-      <div class="rpt-meta"><span>Employee ID</span><b>${emp.id}</b><span>Schedule</span><b>${PLAN_LABEL[emp.plan]}</b><span>Location</span><b>${esc(p.location||'—')}</b><span>Period</span><b>1–${daysIn(ym)} ${monthLabel(ym)}</b></div></div>
-    <div><div class="rpt-h">Overall result</div><div class="rpt-score"><div class="big"><b>${Math.round(s.overall)}</b><span>${g}</span></div><div class="rpt-kpis">${kp.map(([l,v])=>`<div><span>${l}</span><b>${v}</b></div>`).join('')}</div></div></div>
-    <div><div class="rpt-h">Attendance</div><table class="rpt-table"><tbody>${att.map(([l,v])=>`<tr><td style="width:46%;color:#65778a">${l}</td><td>${esc(String(v))}</td></tr>`).join('')}</tbody></table></div>
-    <div><div class="rpt-h">Day by day</div><div class="rpt-cal" style="grid-template-columns:repeat(${daysIn(ym)},1fr)">${m.days.map(x=>`<div style="background:${cc[x.status]||'#eef1f4'}">${x.d.getDate()}</div>`).join('')}</div>
-      <div class="rpt-legend">${[['#cfe8dc','On time'],['#fbe9a6','Late'],['#ddd2f5','Left early'],['#f6c3c3','Leave'],['#cfdbe6','Leave made up'],['#dbe3ea','Flexible'],['#eef1f4','Weekend / off']].map(([c,l])=>`<span><i style="background:${c}"></i>${l}</span>`).join('')}</div></div>
-  </div>${foot(1)}</div>`;
-  const p2=`<div class="rpt-page">${band}<div class="rpt-body">
-    <div><div class="rpt-h">Projects and tasks · ${m.tasksDone} of ${m.tasks.length} completed</div><table class="rpt-table"><thead><tr><th>Task</th><th>Project</th><th>Due</th><th>Completed</th><th>Status</th></tr></thead><tbody>
-      ${[...m.tasks].sort((a,b)=>(a.due||8.64e15)-(b.due||8.64e15)).map(t=>`<tr><td>${esc(t.title)}</td><td>${esc(t.project)}</td><td>${t.due?fmtD(t.due):'—'}</td><td>${t.done?fmtD(t.done):'—'}</td><td>${TASKST[t.status][0]}</td></tr>`).join('')}</tbody></table></div>
-    <div><div class="rpt-h">Monthly feedback</div><div class="rpt-summary">${esc(f.summary)}</div></div>
-    <div class="rpt-fb"><div class="box"><h4 style="color:#2e8a68">What went well</h4><ul>${(f.pos.length?f.pos:['Keep building on this month.']).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>
-      <div class="box"><h4 style="color:#b97c12">Room for improvement</h4><ul>${(f.imp.length?f.imp:['No issues recorded this month.']).map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>
-      <div class="box full"><h4 style="color:#3f5d73">Expected next month</h4><ul>${f.exp.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div></div>
-    <div style="margin-top:12px"><div class="rpt-sign"><div>Reviewed by · Fitma management</div><div>Acknowledged by · ${esc(p.name)}</div></div>
-    <p style="font-size:9.5px;color:#8a98a8;margin-top:14px">Generated by Fitma Workspace from Fitma Tick hours, projects and tasks. Score weights: punctuality 25%, full shifts 15%, attendance 20%, hours 15%, on-time delivery 25%. A start counts as late from one minute past the scheduled time.</p></div>
-  </div>${foot(2)}</div>`;
+  const m=metrics(emp,ym), p=profileOf(emp);
+  const PG=(((typeof PROGRESS!=='undefined'&&PROGRESS)||{})[emp.id]||{})[ym]||{};
+  const issued=unlockDate(ym);
+  const navy='#283544', mut='#6b7c8c', line='#e4e8ec', ink='#1e2834';
+  const hhmm=t=>pad(Math.floor(t/60))+':'+pad(Math.round(t%60));
+  const clk=t=>{const h=Math.floor(t/60)%24,mm=Math.round(t%60);return pad(((h+11)%12)+1)+':'+pad(mm)+' '+(h<12?'AM':'PM');};
+  const dlabel=d=>DN[d.getDay()]+' '+pad(d.getDate())+' '+MN[d.getMonth()].slice(0,3);
+  const schedR=d=>{const sh=shiftsFor(emp,d); if(sh===null)return 'Flexible'; if(!sh.length)return 'Off'; return sh.map(x=>clk(x[0])+' - '+clk(x[1])).join(', ');};
+  const prepared=issued.getDate()+' '+MN[issued.getMonth()]+' '+issued.getFullYear();
+  const ymLabel=monthLabel(ym);
+  const position=PG.position||p.position||(emp.plan==='founder'?'Founder':'Team member');
+  const pageCss='width:794px;min-height:1123px;background:#fff;color:'+ink+';font-family:var(--body),\'Segoe UI\',system-ui,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;padding:0;margin:0 auto 16px;border:0;box-shadow:none';
+  const serif='font-family:var(--display),Georgia,serif';
+  const H=n=>'<div style="'+serif+';font-size:21px;color:'+navy+';margin:0 0 12px">'+n+'</div>';
+
+  // ---- header band ----
+  const mark='<img src="'+LOGO_WHITE+'" alt="" style="width:46px;height:46px;object-fit:contain;flex:none">';
+  const band=(sub,right1,right2)=>'<div style="background:'+navy+';color:#fff;padding:26px 40px;display:flex;align-items:center;justify-content:space-between;gap:16px">'
+    +'<div style="display:flex;align-items:center;gap:16px">'+mark+'<div><div style="'+serif+';font-size:28px;line-height:1.05">Monthly Progress Report</div><div style="font-size:10px;letter-spacing:3px;color:#9fb1c2;margin-top:4px">'+sub+'</div></div></div>'
+    +'<div style="text-align:right;font-size:11.5px;color:#cdd8e2"><div>'+right1+'</div><div style="margin-top:3px">'+right2+'</div></div></div>';
+  const foot=n=>'<div style="position:absolute;left:40px;right:40px;bottom:22px;display:flex;justify-content:space-between;font-size:9.5px;color:#9aa7b4;border-top:1px solid '+line+';padding-top:10px">'
+    +'<span>Fitma™ · info.fitma@gmail.com · www.fitma.lk</span><span>Page '+n+' of 2</span></div>';
+
+  // ---- page 1 ----
+  const scoreCard=(lbl,val)=>{
+    const v=(val===0||val)?val:'–'; const w=(typeof v==='number')?Math.max(0,Math.min(100,v*10)):0;
+    return '<div style="flex:1;background:#f3f6f8;border:1px solid '+line+';border-radius:12px;padding:16px 18px">'
+      +'<div style="font-size:10px;letter-spacing:1.5px;font-weight:700;color:'+mut+'">'+lbl+'</div>'
+      +'<div style="'+serif+';font-size:30px;color:'+navy+';margin:6px 0 10px">'+v+' <span style="font-size:14px;color:'+mut+'">/ 10</span></div>'
+      +'<div style="height:6px;background:#e3e9ee;border-radius:999px;overflow:hidden"><i style="display:block;height:100%;width:'+w+'%;background:'+navy+';border-radius:999px"></i></div></div>';
+  };
+  const projList=(PG.projects&&PG.projects.length)?PG.projects:
+    (m.tasks||[]).map(t=>({project:t.project||t.title,assigned:t.assigned?fmtD(t.assigned):'-',deadline:t.due?fmtD(t.due):'-',submitted:t.done?fmtD(t.done):'-',status:(TASKST&&t.status&&TASKST[t.status]?String(TASKST[t.status][0]).replace(/<[^>]*>/g,''):(t.done?'Completed':'In progress'))}));
+  const projRows=projList.length?projList.map((pr,i)=>'<tr style="background:'+(i%2?'#f6f8fa':'#fff')+'">'
+    +'<td style="padding:11px 12px;vertical-align:top;max-width:230px">'+esc(pr.project||'—')+'</td>'
+    +'<td style="padding:11px 12px;vertical-align:top;color:'+mut+'">'+esc(pr.assigned||'-')+'</td>'
+    +'<td style="padding:11px 12px;vertical-align:top;color:'+mut+'">'+esc(pr.deadline||'-')+'</td>'
+    +'<td style="padding:11px 12px;vertical-align:top">'+esc(pr.submitted||'-')+'</td>'
+    +'<td style="padding:11px 12px;vertical-align:top">'+rptChip(pr.status)+'</td></tr>').join('')
+    :'<tr><td colspan="5" style="padding:14px 12px;color:'+mut+'">No projects recorded for this month.</td></tr>';
+
+  const p1='<div class="rpt-page" style="'+pageCss+'">'+band('&nbsp;&nbsp;'+ymLabel.toUpperCase()+' · FITMA TEAM','Prepared on <b style="color:#fff">'+prepared+'</b>','Confidential · for '+esc(p.name.split(' ')[0])+'')
+    +'<div style="padding:22px 40px 80px">'
+    +'<div style="display:flex;justify-content:space-between;font-size:12px;color:'+mut+';border-bottom:1px solid '+line+';padding-bottom:14px;margin-bottom:20px"><span>Review Period: <b style="color:'+ink+'">1 - '+daysIn(ym)+' '+ymLabel+'</b></span><span>Report Type: <b style="color:'+ink+'">Monthly Progress Report</b></span></div>'
+    +H('Employee Profile')
+    +'<div style="border:1px solid '+line+';border-radius:14px;padding:22px 24px;display:grid;grid-template-columns:1fr 1fr;gap:18px 24px;margin-bottom:24px">'
+      +'<div><div style="font-size:10px;letter-spacing:1.5px;color:'+mut+';font-weight:700">EMPLOYEE NAME</div><div style="'+serif+';font-size:22px;color:'+navy+';margin-top:4px">'+esc(p.name)+'</div></div>'
+      +'<div><div style="font-size:10px;letter-spacing:1.5px;color:'+mut+';font-weight:700">EMPLOYEE ID</div><div style="font-weight:700;margin-top:6px">'+emp.id+'</div></div>'
+      +'<div><div style="font-size:10px;letter-spacing:1.5px;color:'+mut+';font-weight:700">POSITION</div><div style="font-weight:700;margin-top:6px">'+esc(position)+'</div></div>'
+      +'<div><div style="font-size:10px;letter-spacing:1.5px;color:'+mut+';font-weight:700">WORK SCHEDULE</div><div style="margin-top:6px;line-height:1.5">'+(emp.plan==='founder'?'Flexible (founder)':'Mon - Thu: '+schedR(firstDow(ym,1))+'<br>Fri: '+schedR(firstDow(ym,5)))+'</div></div>'
+    +'</div>'
+    +H('Progress Score')
+    +'<div style="display:flex;gap:16px;margin-bottom:16px">'+scoreCard('PROJECT MANAGEMENT',PG.pm)+scoreCard('TIME MANAGEMENT',PG.tm)+scoreCard('EAGER TO LEARN',PG.eager)+'</div>'
+    +'<div style="background:#f3f6f8;border-radius:12px;padding:16px 18px;font-size:11.5px;line-height:1.7;color:'+mut+';margin-bottom:26px"><b style="color:'+ink+'">How we track the progress score.</b> We look at each person\'s work during the month using the Fitma Tick tracker and our WhatsApp discussions. <b style="color:'+ink+'">Project Management</b> covers meeting deadlines, completing tasks properly, how many revisions were needed, etc. <b style="color:'+ink+'">Time Management</b> covers starting on time, following the work schedule, using the tracker correctly, etc. <b style="color:'+ink+'">Eager to Learn</b> covers asking questions, applying feedback, taking on new tasks, etc.</div>'
+    +H('Projects and Deadlines')
+    +'<table style="width:100%;border-collapse:collapse;font-size:11.5px"><thead><tr style="background:'+navy+';color:#fff;text-align:left"><th style="padding:10px 12px;font-weight:700;border-radius:8px 0 0 0">Project</th><th style="padding:10px 12px;font-weight:700">Assigned</th><th style="padding:10px 12px;font-weight:700">Deadline</th><th style="padding:10px 12px;font-weight:700">Submitted</th><th style="padding:10px 12px;font-weight:700;border-radius:0 8px 0 0">Status</th></tr></thead><tbody>'+projRows+'</tbody></table>'
+    +'</div>'+foot(1)+'</div>';
+
+  // ---- page 2: daily attendance ----
+  const rows=m.days.filter(x=>x.shifts&&x.shifts.length&&x.status!=='future'&&x.status!=='nodata'&&x.status!=='off');
+  let leaveCount=0;
+  const trows=rows.map((x,i)=>{
+    const bg=i%2?'#f6f8fa':'#fff'; const sched=hhmm(x.shifts[0][0]); let startedAt='—',punc,note=x.reason||'';
+    if(x.status==='leave'){ leaveCount++; punc=['Leave','#6b7c8c','#eef1f4']; }
+    else { const first=(x.sessions||[]).filter(s=>s.kind==='shift').sort((a,b)=>a.s-b.s)[0];
+      if(first&&!first.missed){ startedAt=hhmm(first.in); punc=rptPunct(first.late||0); }
+      else { punc=['At risk (no start)','#d0393b','#fbe7e7']; } }
+    return '<tr style="background:'+bg+'"><td style="padding:9px 12px">'+dlabel(x.d)+'</td><td style="padding:9px 12px;color:'+mut+'">'+sched+'</td><td style="padding:9px 12px;color:'+mut+'">'+startedAt+'</td><td style="padding:9px 12px"><span style="display:inline-block;padding:4px 10px;border-radius:999px;font-size:10px;font-weight:700;color:'+punc[1]+';background:'+punc[2]+'">'+esc(punc[0])+'</span></td><td style="padding:9px 12px;color:'+mut+'">'+esc(note)+'</td></tr>';
+  }).join('')||'<tr><td colspan="5" style="padding:14px 12px;color:'+mut+'">No scheduled working days recorded in this period.</td></tr>';
+  const leaveTxt=leaveCount?('Leave: '+leaveCount+' day'+(leaveCount>1?'s':'')+' in this period.'):'Leave: none taken in this period.';
+
+  const p2='<div class="rpt-page" style="'+pageCss+'">'
+    +'<div style="background:'+navy+';color:#fff;padding:18px 40px;display:flex;align-items:center;justify-content:space-between"><div style="display:flex;align-items:center;gap:14px">'+mark+'<div style="'+serif+';font-size:22px">Monthly Progress Report</div></div><div style="text-align:right;font-size:11.5px;color:#cdd8e2"><div><b style="color:#fff">'+esc(p.name)+'</b></div><div>'+ymLabel+'</div></div></div>'
+    +'<div style="padding:22px 40px 80px">'+H('Daily Attendance Sheet')
+    +'<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:'+navy+';color:#fff;text-align:left"><th style="padding:9px 12px;border-radius:8px 0 0 0">Date</th><th style="padding:9px 12px">Start Time</th><th style="padding:9px 12px">Started At</th><th style="padding:9px 12px">Punctuality</th><th style="padding:9px 12px;border-radius:0 8px 0 0">Notes</th></tr></thead><tbody>'+trows+'</tbody></table>'
+    +'<p style="font-size:10px;color:'+mut+';line-height:1.6;margin-top:14px">"Started At" is the first recorded start of the day. Punctuality: Excellent = at or before the start time; Needs improvement = 1-5 minutes late; At risk = more than 5 minutes late. '+leaveTxt+'</p>'
+    +'<p style="font-size:12px;line-height:1.6;margin-top:20px">Thank you for your effort this month. If you have any questions about this report, or need any support, please let us know.</p>'
+    +'<p style="font-size:12px;margin-top:10px">Best regards, <b style="'+serif+';font-size:16px">The Fitma Team</b></p>'
+    +'</div>'+foot(2)+'</div>';
+
   return p1+p2;
 }
+
 function renderPreview(){
   const {e,m}=S.preview, emp=empById(e);
   return `<div class="overlay" data-action="close-preview"><div class="modal" role="dialog" aria-label="Report preview" data-stop="1">
@@ -1315,6 +1497,9 @@ document.addEventListener('click', async ev=>{
     case 'signout': signOutNow(); break;
     case 'forgot': showForgot(); break;
     case 'addmember': showAddMember(); break;
+    case 'pay-emp': S.payEmp=el.dataset.e; render(); break;
+    case 'pay-download': payDownload(el.dataset.e); break;
+    case 'pay-preview': payPreview(el.dataset.e); break;
     case 'changepw': S.view='password'; render(); window.scrollTo(0,0); break;
     case 'nav': S.view=el.dataset.v; S.projFilter='all'; render(); window.scrollTo(0,0); break;
     case 'open-emp': S.viewing=el.dataset.e; S.view='eval'; S.projFilter='all'; render(); window.scrollTo(0,0); break;
@@ -1481,7 +1666,8 @@ async function saveMemberRow(id, btn){
   catch(err){ btn.disabled=false; toast(err.message || 'Couldn’t save. Try again.'); }
 }
 document.addEventListener('change', ev=>{ if(ev.target.id==='shots-ym'){ S.shotYm=ev.target.value||null; if(S.shotEmp) loadShots(S.shotEmp); return; } const id=ev.target.dataset.change; if(!id) return; S.month=ev.target.value; S.selDay=null; S.projFilter='all'; render(); });
-document.addEventListener('keydown', ev=>{ if(ev.key==='Escape'){ if(S.preview||S.chooser){ S.preview=null; S.chooser=null; render(); } document.querySelector('.overlay.reset')?.remove(); document.querySelector('.overlay.forgot')?.remove(); document.querySelector('.overlay.addmem')?.remove(); } });
+document.addEventListener('input', ev=>{ if(ev.target.classList&&ev.target.classList.contains('pay-amt')) payNetUpdate(); });
+document.addEventListener('keydown', ev=>{ if(ev.key==='Escape'){ if(S.preview||S.chooser){ S.preview=null; S.chooser=null; render(); } document.querySelector('.overlay.reset')?.remove(); document.querySelector('.overlay.forgot')?.remove(); document.querySelector('.overlay.addmem')?.remove(); document.querySelector('.overlay.payprev')?.remove(); } });
 window.addEventListener('resize', ()=>{ if(S.preview) fitPreview(); });
 
 function bindForms(){
