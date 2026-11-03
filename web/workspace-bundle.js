@@ -34,7 +34,22 @@ html,body{margin:0;padding:0}
 @media (max-width:640px){.pulse{grid-template-columns:1fr}}
 .loading{min-height:100vh;min-height:100dvh;display:grid;place-items:center;gap:10px;background:var(--navy);color:var(--on-navy)}
 .loading p{color:var(--on-navy-muted);font-size:13px;margin:0;letter-spacing:.02em}
-.voro-load{width:120px;height:auto;margin:0 auto}`;var s=document.createElement('style');s.setAttribute('data-fitma','delta');s.textContent=css;document.head.appendChild(s);}catch(e){}})();
+.voro-load{width:120px;height:auto;margin:0 auto}
+.qcard{display:flex;align-items:center;gap:16px;background:linear-gradient(120deg,var(--brand-soft),var(--surface));border:1px solid var(--line);border-radius:var(--r);padding:16px 20px;margin-bottom:18px}
+.qcard img{width:64px;height:64px;object-fit:contain;flex:none}
+.qcard .qt{font-family:var(--display);font-size:18px;line-height:1.35;color:var(--ink)}
+.qcard .qa{color:var(--muted);font-size:12.5px;margin-top:6px}
+.pboard{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+@media(max-width:900px){.pboard{grid-template-columns:1fr}}
+.pcol{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r);padding:12px}
+.pcol-head{display:flex;align-items:center;justify-content:space-between;margin:2px 4px 10px;font-size:11.5px;font-weight:700;letter-spacing:.04em;color:var(--muted);text-transform:uppercase}
+.pcol-head .n{background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:1px 9px;font-size:11px}
+.pcard2{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--brand);border-radius:10px;padding:11px 12px;margin-bottom:9px;cursor:pointer;transition:transform .12s,box-shadow .12s}
+.pcard2:hover{box-shadow:0 6px 16px rgba(40,53,68,.12);transform:translateY(-1px)}
+.pcard2:last-child{margin-bottom:0}
+.pcard2 b{display:block;font-size:13.5px;line-height:1.3}
+.pcard2 .meta{display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap}
+.pcol .empty{color:var(--muted);font-size:12px;text-align:center;padding:12px 6px;opacity:.7}`;var s=document.createElement('style');s.setAttribute('data-fitma','delta');s.textContent=css;document.head.appendChild(s);}catch(e){}})();
 
 // Fitma Workspace engine — shared by the browser app (workspace/index.html)
 // and the daily Fitma Tick sync (netlify/functions). Pure JavaScript, no dependencies.
@@ -707,6 +722,125 @@ function weekDays(emp){
   const mon = new Date(DATA_END); mon.setDate(DATA_END.getDate()-((DATA_END.getDay()+6)%7));
   return Array.from({length:5},(_,i)=>{ const d=new Date(mon); d.setDate(mon.getDate()+i); return {d, day:(DAYS[emp.id]||{})[key(d)] || {status:'nodata',sessions:[],shifts:[]}}; });
 }
+const QUOTES=[
+{t:"The secret of getting ahead is getting started.",a:"Mark Twain"},
+{t:"Quality is not an act, it is a habit.",a:"Aristotle"},
+{t:"Success is the sum of small efforts repeated day in and day out.",a:"Robert Collier"},
+{t:"Your work is going to fill a large part of your life, so do it well.",a:"Steve Jobs"},
+{t:"Do the hard jobs first. The easy jobs will take care of themselves.",a:"Dale Carnegie"},
+{t:"It always seems impossible until it is done.",a:"Nelson Mandela"},
+{t:"Discipline is the bridge between goals and accomplishment.",a:"Jim Rohn"},
+{t:"Great things are done by a series of small things brought together.",a:"Vincent van Gogh"},
+{t:"Start where you are. Use what you have. Do what you can.",a:"Arthur Ashe"},
+{t:"The way to get started is to quit talking and begin doing.",a:"Walt Disney"},
+{t:"Punctuality is the politeness of kings.",a:"Louis XVIII"},
+{t:"Well begun is half done.",a:"Aristotle"},
+{t:"Either you run the day or the day runs you.",a:"Jim Rohn"},
+{t:"Focus on being productive instead of busy.",a:"Tim Ferriss"},
+{t:"Small deeds done are better than great deeds planned.",a:"Peter Marshall"},
+{t:"Don't watch the clock; do what it does. Keep going.",a:"Sam Levenson"},
+{t:"Amateurs sit and wait for inspiration; the rest of us just get up and go to work.",a:"Stephen King"},
+{t:"The future depends on what you do today.",a:"Mahatma Gandhi"},
+{t:"Motivation gets you going, but discipline keeps you growing.",a:"John C. Maxwell"},
+{t:"You don't have to be great to start, but you have to start to be great.",a:"Zig Ziglar"},
+{t:"Hard work beats talent when talent doesn't work hard.",a:"Tim Notke"},
+{t:"Success usually comes to those too busy to be looking for it.",a:"Henry David Thoreau"},
+{t:"A year from now you may wish you had started today.",a:"Karen Lamb"},
+{t:"Productivity is never an accident. It is always the result of commitment to excellence.",a:"Paul J. Meyer"},
+{t:"Do what you can, with what you have, where you are.",a:"Theodore Roosevelt"},
+{t:"The expert in anything was once a beginner.",a:"Helen Hayes"},
+{t:"Setting goals is the first step in turning the invisible into the visible.",a:"Tony Robbins"},
+{t:"Excellence is doing ordinary things extraordinarily well.",a:"John W. Gardner"},
+{t:"If you get tired, learn to rest, not to quit.",a:"Banksy"},
+{t:"Opportunities don't happen. You create them.",a:"Chris Grosser"},
+{t:"The only way to do great work is to love what you do.",a:"Steve Jobs"},
+{t:"Continuous improvement is better than delayed perfection.",a:"Mark Twain"},
+{t:"Today's accomplishments were yesterday's impossibilities.",a:"Robert H. Schuller"},
+{t:"Make each day your masterpiece.",a:"John Wooden"},
+{t:"Your attitude, not your aptitude, will determine your altitude.",a:"Zig Ziglar"},
+{t:"The difference between ordinary and extraordinary is that little extra.",a:"Jimmy Johnson"},
+{t:"Work hard in silence, let your success be your noise.",a:"Frank Ocean"},
+{t:"A goal without a plan is just a wish.",a:"Antoine de Saint-Exupery"},
+{t:"Done is better than perfect.",a:"Sheryl Sandberg"},
+{t:"Energy and persistence conquer all things.",a:"Benjamin Franklin"},
+{t:"Believe you can and you're halfway there.",a:"Theodore Roosevelt"},
+{t:"The best preparation for tomorrow is doing your best today.",a:"H. Jackson Brown Jr."},
+{t:"Little by little, one travels far.",a:"J.R.R. Tolkien"},
+{t:"Success is not final; failure is not fatal: it is the courage to continue that counts.",a:"Winston Churchill"},
+{t:"Act as if what you do makes a difference. It does.",a:"William James"},
+{t:"The harder you work for something, the greater you'll feel when you achieve it.",a:"Anonymous"},
+{t:"Don't count the days, make the days count.",a:"Muhammad Ali"},
+{t:"Strive for progress, not perfection.",a:"Anonymous"},
+{t:"Great work is done by people who are not afraid to be great.",a:"Fernando Flores"},
+{t:"What you do today can improve all your tomorrows.",a:"Ralph Marston"},
+{t:"Be so good they can't ignore you.",a:"Steve Martin"},
+{t:"Dreams don't work unless you do.",a:"John C. Maxwell"},
+{t:"The man who moves a mountain begins by carrying away small stones.",a:"Confucius"},
+{t:"Perseverance is not a long race; it is many short races one after the other.",a:"Walter Elliot"},
+{t:"Nothing will work unless you do.",a:"Maya Angelou"},
+{t:"Success is walking from failure to failure with no loss of enthusiasm.",a:"Winston Churchill"},
+{t:"The only limit to our realization of tomorrow is our doubts of today.",a:"Franklin D. Roosevelt"},
+{t:"Do something today that your future self will thank you for.",a:"Sean Patrick Flanery"},
+{t:"Discipline equals freedom.",a:"Jocko Willink"},
+{t:"If it is important to you, you will find a way. If not, you will find an excuse.",a:"Ryan Blair"},
+{t:"Consistency is what transforms average into excellence.",a:"Anonymous"},
+{t:"Push yourself, because no one else is going to do it for you.",a:"Anonymous"},
+{t:"The key is not to prioritize what's on your schedule, but to schedule your priorities.",a:"Stephen Covey"},
+{t:"You miss 100% of the shots you don't take.",a:"Wayne Gretzky"},
+{t:"Whether you think you can or you think you can't, you're right.",a:"Henry Ford"},
+{t:"Begin anywhere.",a:"John Cage"},
+{t:"Ideas are easy. Implementation is hard.",a:"Guy Kawasaki"},
+{t:"Simplicity is the soul of efficiency.",a:"Austin Freeman"},
+{t:"Working hard becomes a habit, a serious kind of fun.",a:"Sir Alex Ferguson"},
+{t:"Be miserable. Or motivate yourself. Whatever has to be done, it's always your choice.",a:"Wayne Dyer"},
+{t:"Today is always the most productive day of your week.",a:"Mark Hunter"},
+{t:"Ambition is the path to success. Persistence is the vehicle you arrive in.",a:"Bill Bradley"},
+{t:"Don't be afraid to give up the good to go for the great.",a:"John D. Rockefeller"},
+{t:"A little progress each day adds up to big results.",a:"Anonymous"},
+{t:"The best way to predict the future is to create it.",a:"Peter Drucker"},
+{t:"Trust the process. Your time is coming.",a:"Anonymous"},
+{t:"Falling down is an accident. Staying down is a choice.",a:"Rosemary Nonny Knight"},
+{t:"You don't need to see the whole staircase, just take the first step.",a:"Martin Luther King Jr."},
+{t:"Hard work keeps the wrinkles out of the mind and spirit.",a:"Helena Rubinstein"},
+{t:"Make it happen. Shock everyone.",a:"Anonymous"},
+{t:"Success doesn't come to you, you go to it.",a:"Marva Collins"},
+{t:"Be stronger than your excuses.",a:"Anonymous"},
+{t:"The secret of your future is hidden in your daily routine.",a:"Mike Murdock"},
+{t:"Stay focused and never give up.",a:"Anonymous"},
+{t:"A dream becomes a goal when action is taken toward its achievement.",a:"Bo Bennett"},
+{t:"Do it with passion or not at all.",a:"Rosa Nouchette Carey"},
+{t:"Your only limit is you. Be brave and fearless.",a:"Anonymous"},
+{t:"Work until your idols become your rivals.",a:"Anonymous"},
+{t:"One hour of focused work is worth a day of distraction.",a:"Anonymous"},
+{t:"Great attitude becomes a great day, which becomes a great month, a great year, a great life.",a:"Mandy Hale"},
+{t:"Be the energy you want to attract.",a:"Anonymous"},
+{t:"Success is liking yourself, liking what you do, and liking how you do it.",a:"Maya Angelou"}
+];
+function quoteOfDay(){ var d=Math.floor((Date.now()+330*60000)/864e5); var i=((d%QUOTES.length)+QUOTES.length)%QUOTES.length; return QUOTES[i]; }
+function projBoard(emp){
+  var mine=myProjects(emp); var c={todo:[],prog:[],done:[]};
+  mine.forEach(function(p){ var k=projStatus(p).k; if(k==='done')c.done.push(p); else if(k==='todo')c.todo.push(p); else c.prog.push(p); });
+  var col=function(title,arr){ return `<div class="pcol"><div class="pcol-head"><span>${title}</span><span class="n">${arr.length}</span></div>`+
+    (arr.length?arr.map(function(p){var st=projStatus(p);return `<div class="pcard2" style="border-left-color:${projColor(p.name)}" data-action="projcard" data-k="${esc(p.key)}"><b>${esc(p.name)}</b><div class="meta"><span class="chip ${st.chip}">${st.label}</span>${p.deadline?`<span class="muted small">Due ${fmtShort(p.deadline)}</span>`:(p.completed?`<span class="muted small">Done ${fmtShort(p.completed)}</span>`:'')}</div></div>`;}).join(''):'<div class="empty">Nothing here</div>')+`</div>`; };
+  if(!mine.length) return `<div class="card"><div class="card-head"><div><h3>Your projects</h3></div></div><p class="muted">No projects assigned yet. They'll show up here as a board once your admin adds them.</p></div>`;
+  return `<div style="margin-bottom:18px"><div class="card-head" style="padding:0 2px 2px"><div><h3>Your projects</h3><p>Tap any card to see the full details.</p></div><button class="btn sm ghost" data-action="nav" data-v="projects">Open projects</button></div>
+    <div class="pboard">${col('To do',c.todo)}${col('In progress',c.prog)}${col('Completed',c.done)}</div></div>`;
+}
+function showProjDetail(k){
+  var p=PROJECTS.find(function(x){return String(x.key)===String(k);}); if(!p)return;
+  var st=projStatus(p);
+  var tasks=TASKLIST.filter(function(t){return t.project===p.name;}).sort(function(a,b){return (a.due||8.64e15)-(b.due||8.64e15);});
+  var o=document.querySelector('.overlay.projdetail'); if(o)o.remove();
+  o=document.createElement('div'); o.className='overlay projdetail';
+  o.innerHTML=`<div class="modal" data-stop="1" style="max-width:520px"><div class="modal-head"><div><span class="label" style="display:inline-flex;align-items:center;gap:8px"><span class="tag" style="background:${projColor(p.name)};margin:0"></span>Project</span><h3>${esc(p.name)}</h3></div><button class="btn sm" data-close>Close</button></div>
+    <div class="modal-body" style="padding:20px;display:grid;gap:14px">
+      <div><span class="chip ${st.chip}">${st.label}</span></div>
+      <div class="list small"><div class="li"><span class="muted">Assigned</span><span>${p.start?fmtShort(p.start):'—'}</span></div><div class="li"><span class="muted">Deadline</span><span>${p.deadline?fmtShort(p.deadline):'—'}</span></div><div class="li"><span class="muted">Completed</span><span>${p.completed?fmtShort(p.completed):'—'}</span></div></div>
+      ${tasks.length?`<div><div class="muted small" style="margin-bottom:8px;font-weight:700;letter-spacing:.03em;text-transform:uppercase">Tasks (${tasks.length})</div><div class="list small">${tasks.map(function(t){return `<div class="li"><div class="grow"><div class="t1">${esc(t.title)}</div>${t.desc?`<div class="t2">${esc(t.desc)}</div>`:''}</div>${taskChip(t.status)}</div>`;}).join('')}</div></div>`:'<p class="muted small">No individual tasks logged under this project yet.</p>'}
+    </div></div>`;
+  o.addEventListener('click',function(ev){ if(ev.target.closest('[data-close]')||!ev.target.closest('[data-stop]')) o.remove(); });
+  document.body.appendChild(o);
+}
 function eHome(emp){
   const m = metrics(emp,CUR), s=m.scores, p=profileOf(emp), [g,gc]=grade(s.overall, m), live=liveStatus(emp), st=streak(emp), bd=badges(emp,CUR);
   const hello = NOW.getHours()<12?'Good morning':NOW.getHours()<17?'Good afternoon':'Good evening';
@@ -724,6 +858,10 @@ function eHome(emp){
     </div>
     <div class="hero-side">${ring(s.overall,112,9,'this month','on-dark','rgba(255,255,255,.14)','#d8dde0')}<span class="chip" style="background:rgba(255,255,255,.12);color:var(--on-navy)">${g}</span></div>
   </section>
+
+  <div class="qcard"><img src="${VORA_SUCCESS}" alt="Fitma"><div>${(function(q){return `<div class="qt">“${esc(q.t)}”</div><div class="qa">— ${esc(q.a)}</div>`;})(quoteOfDay())}</div></div>
+
+  ${projBoard(emp)}
 
   ${filled<4?`<div class="nudge"><div><b>Finish your profile</b><p class="muted small">${4-filled} detail${4-filled>1?'s':''} missing. They appear on your monthly report.</p></div><div style="display:flex;gap:12px;align-items:center"><div class="meter"><i style="width:${filled/4*100}%"></i></div><button class="btn sm primary" data-action="nav" data-v="profile">Complete profile</button></div></div>`:''}
 
@@ -1504,6 +1642,7 @@ document.addEventListener('click', async ev=>{
     case 'pay-emp': S.payEmp=el.dataset.e; render(); break;
     case 'pay-download': payDownload(el.dataset.e); break;
     case 'pay-preview': payPreview(el.dataset.e); break;
+    case 'projcard': showProjDetail(el.dataset.k); break;
     case 'changepw': S.view='password'; render(); window.scrollTo(0,0); break;
     case 'nav': S.view=el.dataset.v; S.projFilter='all'; render(); window.scrollTo(0,0); break;
     case 'open-emp': S.viewing=el.dataset.e; S.view='eval'; S.projFilter='all'; render(); window.scrollTo(0,0); break;
@@ -1671,7 +1810,7 @@ async function saveMemberRow(id, btn){
 }
 document.addEventListener('change', ev=>{ if(ev.target.id==='shots-ym'){ S.shotYm=ev.target.value||null; if(S.shotEmp) loadShots(S.shotEmp); return; } const id=ev.target.dataset.change; if(!id) return; S.month=ev.target.value; S.selDay=null; S.projFilter='all'; render(); });
 document.addEventListener('input', ev=>{ if(ev.target.classList&&ev.target.classList.contains('pay-amt')) payNetUpdate(); });
-document.addEventListener('keydown', ev=>{ if(ev.key==='Escape'){ if(S.preview||S.chooser){ S.preview=null; S.chooser=null; render(); } document.querySelector('.overlay.reset')?.remove(); document.querySelector('.overlay.forgot')?.remove(); document.querySelector('.overlay.addmem')?.remove(); document.querySelector('.overlay.payprev')?.remove(); } });
+document.addEventListener('keydown', ev=>{ if(ev.key==='Escape'){ if(S.preview||S.chooser){ S.preview=null; S.chooser=null; render(); } document.querySelector('.overlay.reset')?.remove(); document.querySelector('.overlay.forgot')?.remove(); document.querySelector('.overlay.addmem')?.remove(); document.querySelector('.overlay.payprev')?.remove(); document.querySelector('.overlay.projdetail')?.remove(); } });
 window.addEventListener('resize', ()=>{ if(S.preview) fitPreview(); });
 
 function bindForms(){
