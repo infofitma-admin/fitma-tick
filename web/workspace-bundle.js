@@ -380,7 +380,7 @@ const VORA = '<svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role
 const DEMO = new URLSearchParams(location.search).has('demo');
 const DAYS = state.DAYS, TASKLIST = state.TASKLIST;
 let TEAM = [], PROFILES = {}, SETTINGS = {}, SYNC = {}, NOW = new Date(), DATA_END, TODAY, MONTHS = [], CUR;
-let ACTIVITY = [], EVENTS = [];
+let ACTIVITY = [], EVENTS = [], PROGRESS = {}, ACT_FEED = null;
 let PROJECTS = [], PROJMETA = {};
 const ADMIN = { id:'admin', name:'Fitma Admin', email: ADMIN_EMAIL.toLowerCase() };
 const isUnlocked = ym => NOW >= unlockDate(ym);
@@ -422,11 +422,10 @@ function api(path, body){
       .apiCall(path, body ? JSON.stringify(body) : '', TOKEN);
   });
 }
-async function loadData(){
-  const d = await api('/data');
+function applyData(d){
   clearData(); SETTINGS = d.settings || {}; SYNC = d.sync || {};
   TEAM = (d.members||[]).filter(m=>m.active!==false).sort((a,b)=>a.id.localeCompare(b.id));
-  PROFILES = d.profiles || {}; ACTIVITY = d.activity || []; EVENTS = d.events || [];
+  PROFILES = d.profiles || {}; ACTIVITY = d.activity || []; EVENTS = d.events || []; PROGRESS = d.progress || {};
   setMonths((d.months||[]).map(m=>m.dataEnd));
   (d.months||[]).filter(m=>MONTHS.includes(m.ym)).forEach(ingestMonth); fillGaps();
   PROJMETA = d.projectMeta || {};
@@ -434,13 +433,28 @@ async function loadData(){
     startD: p.start?parseKey(p.start):null, deadlineD: p.deadline?parseKey(p.deadline):null, completedD: p.completed?parseKey(p.completed):null }));
   return d.who;
 }
+async function loadData(){
+  const d = await api('/data');
+  try { localStorage.setItem('fw:data', JSON.stringify(d)); } catch(e){}
+  return applyData(d);
+}
 const loadAll = loadData;
 async function startSession(){
   if (!TOKEN){ S.loading = false; render(); return; }
-  S.loading = true; render();
-  try { const who = await loadData(); S.user = who.role==='admin' ? 'admin' : who.empId; S.mustChange = !!who.mustChange; S.view = null; }
-  catch(e){ if (e.status === 401){ setToken(''); S.user = null; } else { S.authMsg = 'We couldn’t load your workspace. Check your connection and try again.'; } }
+  let hydrated = false;
+  try {
+    const c = localStorage.getItem('fw:data');
+    if (c){ const d = JSON.parse(c); const who = applyData(d);
+      S.user = who.role==='admin' ? 'admin' : who.empId; S.mustChange = !!who.mustChange; S.loading = false; hydrated = true; render(); }
+  } catch(e){}
+  if (!hydrated){ S.loading = true; render(); }
+  try { const who = await loadData(); S.user = who.role==='admin' ? 'admin' : who.empId; S.mustChange = !!who.mustChange; if (!hydrated) S.view = null; }
+  catch(e){ if (e.status === 401){ setToken(''); try{ localStorage.removeItem('fw:data'); }catch(_e){} S.user = null; } else if (!hydrated){ S.authMsg = 'We couldn’t load your workspace. Check your connection and try again.'; } }
   S.loading = false; render();
+}
+async function loadActivityFeed(){
+  if (DEMO){ ACT_FEED = { events:EVENTS, activity:ACTIVITY }; return; }
+  const r = await api('/activityfeed'); ACT_FEED = { events:r.events||[], activity:r.activity||[] };
 }
 async function loadSettings(){ try { await loadData(); } catch(e){} }
 async function loadDemoData(){
@@ -1019,11 +1033,16 @@ function aActivity(){
   const emp = (S.actEmp ? empById(S.actEmp) : null) || TEAM[0] || null;
   const chips = `<div class="chips">${TEAM.map(e=>`<button class="fchip ${(emp&&emp.id===e.id)?'on':''}" data-action="act-emp" data-e="${e.id}">${avatar(e,'sm')}${esc(e.name)}</button>`).join('')}</div>`;
   if(!emp) return `<div class="pagehead"><div><h1>Activity &amp; sites</h1></div></div>${chips}<div class="card"><p class="muted">No team members yet.</p></div>`;
-  const evs = EVENTS.filter(x=>String(x.empId)===String(emp.id)).slice().sort((a,b)=>a.ts<b.ts?-1:1);
+  if(ACT_FEED===null){
+    if(!S.actLoading){ S.actLoading=true; loadActivityFeed().then(()=>{ S.actLoading=false; render(); }).catch(()=>{ S.actLoading=false; ACT_FEED={events:[],activity:[]}; render(); }); }
+    return `<div class="pagehead"><div><h1>Activity &amp; sites</h1><p>Work sessions and the apps &amp; websites each person used while tracking.</p></div></div>${chips}<div class="card" style="text-align:center;padding:38px 24px"><img class="voro-load" style="width:92px;margin:0 auto" src="${VORA_EMPTY}" alt=""><p class="muted" style="margin-top:10px">Loading activity…</p></div>`;
+  }
+  const EV = ACT_FEED.events||[], AC = ACT_FEED.activity||[];
+  const evs = EV.filter(x=>String(x.empId)===String(emp.id)).slice().sort((a,b)=>a.ts<b.ts?-1:1);
   const evByDay={}; evs.forEach(e=>{ const d=tzDate_(e.ts); if(!d)return; (evByDay[d]=evByDay[d]||[]).push(e); });
   const evDays=Object.keys(evByDay).sort().reverse().slice(0,5);
   const timeline = evDays.length ? evDays.map(d=>`<div class="li"><div class="grow"><div class="t1">${d}</div><div class="t2">${evByDay[d].map(e=>`${tzTime_(e.ts)} · ${actLabel_(e.type)}`).join('  →  ')}</div></div></div>`).join('') : '<p class="muted">No work sessions recorded yet.</p>';
-  const acts = ACTIVITY.filter(x=>String(x.empId)===String(emp.id)).slice().sort((a,b)=>a.ts<b.ts?1:-1);
+  const acts = AC.filter(x=>String(x.empId)===String(emp.id)).slice().sort((a,b)=>a.ts<b.ts?1:-1);
   const aiN = acts.filter(a=>a.ai).length;
   const rows = acts.slice(0,250).map(a=>{
     const label = a.title || a.host || a.app || 'Unknown';
@@ -1280,7 +1299,7 @@ function render(){
 }
 function demoSignIn(id){ S.user=id; S.chooser=null; S.view=null; S.viewing=null; S.projFilter='all'; render(); window.scrollTo(0,0); }
 async function signOutNow(){ S.view=null; S.viewing=null; S.authMsg=''; S.mustChange=false;
-  if (!DEMO){ try { await api('/logout', {}); } catch(e){} setToken(''); }
+  if (!DEMO){ try { await api('/logout', {}); } catch(e){} setToken(''); try{ localStorage.removeItem('fw:data'); }catch(_e){} ACT_FEED=null; }
   S.user=null; render(); }
 setInterval(()=>{ const el=document.getElementById('live'); const e=subject(); if(el && e && S.view==='home') el.innerHTML=liveHTML(liveStatus(e)); }, 30000);
 
