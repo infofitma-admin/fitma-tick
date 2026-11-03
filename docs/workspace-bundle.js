@@ -37,8 +37,8 @@ html,body{margin:0;padding:0}
 .voro-load{width:120px;height:auto;margin:0 auto}
 .qcard{display:flex;align-items:center;gap:16px;background:linear-gradient(120deg,var(--brand-soft),var(--surface));border:1px solid var(--line);border-radius:var(--r);padding:16px 20px;margin-bottom:18px}
 .qcard img{width:64px;height:64px;object-fit:contain;flex:none}
-.qcard .qt{font-family:var(--display);font-size:18px;line-height:1.35;color:var(--ink)}
-.qcard .qa{color:var(--muted);font-size:12.5px;margin-top:6px}
+.qcard .qt{font-family:var(--display);font-size:24px;line-height:1.4;color:var(--ink)}
+@media(max-width:620px){.qcard .qt{font-size:20px}}
 .pboard{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 @media(max-width:900px){.pboard{grid-template-columns:1fr}}
 .pcol{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r);padding:12px}
@@ -867,7 +867,7 @@ function eHome(emp){
     <div class="hero-side">${ring(s.overall,112,9,'this month','on-dark','rgba(255,255,255,.14)','#d8dde0')}<span class="chip" style="background:rgba(255,255,255,.12);color:var(--on-navy)">${g}</span></div>
   </section>
 
-  <div class="qcard"><img src="${VORA_SUCCESS}" alt="Fitma"><div>${(function(q){return `<div class="qt">“${esc(q.t)}”</div><div class="qa">— ${esc(q.a)}</div>`;})(quoteOfDay())}</div></div>
+  <div class="qcard"><img src="${VORA_SUCCESS}" alt="Fitma"><div>${(function(q){return `<div class="qt">“${esc(q.t)}”</div>`;})(quoteOfDay())}</div></div>
 
   ${projBoard(emp)}
 
