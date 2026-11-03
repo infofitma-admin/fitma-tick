@@ -27,7 +27,11 @@ html,body{margin:0;padding:0}
 .auth-art{margin:0;border:0}
 .ring.small .rv b{font-size:15px;letter-spacing:-.01em}
 .ring.small .rv span{font-size:7px}
-.pp{overflow:hidden}
+.pp{overflow:visible}
+.pulse{display:grid;gap:14px;grid-template-columns:repeat(3,minmax(0,1fr))}
+.pp .ring.small{flex:none}
+@media (max-width:980px){.pulse{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:640px){.pulse{grid-template-columns:1fr}}
 .loading{min-height:100vh;min-height:100dvh;display:grid;place-items:center;gap:10px;background:var(--navy);color:var(--on-navy)}
 .loading p{color:var(--on-navy-muted);font-size:13px;margin:0;letter-spacing:.02em}
 .voro-load{width:120px;height:auto;margin:0 auto}`;var s=document.createElement('style');s.setAttribute('data-fitma','delta');s.textContent=css;document.head.appendChild(s);}catch(e){}})();
