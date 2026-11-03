@@ -615,7 +615,7 @@ function badges(emp, ym){
   return [
     {ic:'b_sun',t:'Early bird',d:'No late starts this month',ok:m.lateCount===0},
     {ic:'b_week',t:'Perfect week',d:'A full week all on time',ok:perfectWeek},
-    {ic:'b_full',t:'Full shifts',d:'Never left a shift early',ok:m.earlyCount===0},
+    {ic:'b_full',t:'Completed shifts',d:'Never left a shift early',ok:m.earlyCount===0},
     {ic:'b_flag',t:'Deadline keeper',d:'Every due task on time',ok:m.tasksDue>0&&m.tasksOnTime===m.tasksDue},
     {ic:'b_shield',t:m.leave?'Covered in full':'Full attendance',d:m.leave?'All leave time made up':'No leave days',ok:m.leave? m.coverRate>=.99 : true},
     {ic:'b_bolt',t:'Extra mile',d:'3+ hours beyond schedule',ok:m.overtimeMin>=180}];
@@ -855,7 +855,7 @@ function eHome(emp){
   const due = TASKLIST.filter(t=>t.emp===emp.id && !t.done && (t.ym===CUR)).sort((a,b)=>(a.due||8.64e15)-(b.due||8.64e15)).slice(0,4);
   const filled = [p.position,p.location,p.wa,p.photo].filter(Boolean).length;
   const factors = m.founder ? [['On-time delivery',s.delivery,'all of your score']] :
-    [['Punctuality',s.punctuality,'25%'],['Full shifts',s.completion,'15%'],['Attendance',s.attendance,'20%'],['Hours',s.hours,'15%'],['On-time delivery',s.delivery,'25%']];
+    [['Punctuality',s.punctuality,'25%'],['Completed shifts',s.completion,'15%'],['Attendance',s.attendance,'20%'],['Hours',s.hours,'15%'],['On-time delivery',s.delivery,'25%']];
   return `
   <section class="hero">
     <img class="bigmark" src="${LOGO_WHITE}" alt="">
@@ -885,7 +885,7 @@ function eHome(emp){
       <details class="how"><summary>How is my score worked out?</summary><ul>
         ${m.founder?'<li>Founders work flexible hours, so only on-time delivery of tasks is scored.</li>':`
         <li><b>Punctuality</b>: shifts started on time. One minute late counts, and each late minute takes a little more off.</li>
-        <li><b>Full shifts</b>: shifts worked to the scheduled end.</li>
+        <li><b>Completed shifts</b>: shifts worked to the scheduled end.</li>
         <li><b>Attendance</b>: days worked. Leave counts back in when you make up the hours.</li>
         <li><b>Hours</b>: time tracked in Fitma Tick against your schedule.</li>`}
         <li><b>On-time delivery</b>: tasks finished on or before the due date.</li></ul></details>
@@ -1023,7 +1023,7 @@ function eRev(emp){
       <p class="muted" style="max-width:46ch">Your report, feedback and PDF unlock on ${fmtD(unlockDate(ym))}, once the month is complete. Meanwhile, your live progress is on Home.</p><button class="btn" data-action="nav" data-v="home">See my month so far</button></div>`;
   } else {
     const f=feedback(emp,ym), s=f.m.scores, [g,gc]=grade(s.overall, f.m);
-    const factors = f.m.founder ? [['On-time delivery',s.delivery]] : [['Punctuality',s.punctuality],['Full shifts',s.completion],['Attendance',s.attendance],['Hours',s.hours],['On-time delivery',s.delivery]];
+    const factors = f.m.founder ? [['On-time delivery',s.delivery]] : [['Punctuality',s.punctuality],['Completed shifts',s.completion],['Attendance',s.attendance],['Hours',s.hours],['On-time delivery',s.delivery]];
     body = `<div class="grid g-main">
       <div class="card fb"><div class="card-head"><h3>${monthLabel(ym)} feedback</h3><span class="chip ${gc}">${g}</span></div>
         <p class="fb-summary">${esc(f.summary)}</p>
@@ -1071,7 +1071,7 @@ function aEval(emp){
   const m=metrics(emp,CUR), s=m.scores, [g,gc]=grade(s.overall, m), p=profileOf(emp);
   const fb = feedback(emp,CUR);
   const factors = m.founder ? [['On-time delivery',s.delivery,'all']] :
-    [['Punctuality',s.punctuality,'25%'],['Full shifts',s.completion,'15%'],['Attendance',s.attendance,'20%'],['Hours',s.hours,'15%'],['On-time delivery',s.delivery,'25%']];
+    [['Punctuality',s.punctuality,'25%'],['Completed shifts',s.completion,'15%'],['Attendance',s.attendance,'20%'],['Hours',s.hours,'15%'],['On-time delivery',s.delivery,'25%']];
   const shotsReady = S.shotEmp===emp.id && S.shots;
   return `<div class="pagehead"><div><h1>Evaluation · ${esc(p.name)}</h1><p>${PLAN_LABEL[emp.plan]} · ${monthLabel(CUR)}. Review from attendance, hours and project delivery.</p></div></div>
   <div class="grid g-main">
@@ -1298,7 +1298,7 @@ function aSettings(){
   </div>
   <div class="grid g2">
     <div class="card"><div class="card-head"><h3>Scoring</h3><span class="muted small">Scheduled staff</span></div>
-      <div class="factors">${[['Punctuality',W.punctuality],['Full shifts',W.completion],['Attendance',W.attendance],['Hours',W.hours],['On-time delivery',W.delivery]].map(([l,w])=>`<div class="factor"><span>${l}</span><b>${w*100}%</b><div class="track"><i style="width:${w*400}%"></i></div></div>`).join('')}</div>
+      <div class="factors">${[['Punctuality',W.punctuality],['Completed shifts',W.completion],['Attendance',W.attendance],['Hours',W.hours],['On-time delivery',W.delivery]].map(([l,w])=>`<div class="factor"><span>${l}</span><b>${w*100}%</b><div class="track"><i style="width:${w*400}%"></i></div></div>`).join('')}</div>
       <p class="hint" style="margin-top:12px">Late means any start after the scheduled minute; every late or early minute lowers the score a little more. Leave counts back toward attendance as the hours are made up. Founders are scored on on-time delivery only.</p></div>
     <div class="card"><div class="card-head"><h3>How a day is scored</h3></div>
       <div class="list small"><div class="li"><span class="muted">Hours</span><span style="text-align:right">Start and end of every Fitma Tick session</span></div>
