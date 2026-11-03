@@ -21,7 +21,16 @@
 .voro-load{width:92px;margin:0 auto 4px;display:block}
 .voro-load svg{width:100%;height:auto;display:block}
 .wrap{gap:22px}
-.main{padding-block:30px 72px}`;var s=document.createElement('style');s.setAttribute('data-fitma','delta');s.textContent=css;document.head.appendChild(s);}catch(e){}})();
+
+.main{padding-block:30px 72px}
+html,body{margin:0;padding:0}
+.auth-art{margin:0;border:0}
+.ring.small .rv b{font-size:15px;letter-spacing:-.01em}
+.ring.small .rv span{font-size:7px}
+.pp{overflow:hidden}
+.loading{min-height:100vh;min-height:100dvh;display:grid;place-items:center;gap:10px;background:var(--navy);color:var(--on-navy)}
+.loading p{color:var(--on-navy-muted);font-size:13px;margin:0;letter-spacing:.02em}
+.voro-load{width:120px;height:auto;margin:0 auto}`;var s=document.createElement('style');s.setAttribute('data-fitma','delta');s.textContent=css;document.head.appendChild(s);}catch(e){}})();
 
 // Fitma Workspace engine — shared by the browser app (workspace/index.html)
 // and the daily Fitma Tick sync (netlify/functions). Pure JavaScript, no dependencies.
@@ -195,7 +204,14 @@ function metrics(emp, ym){
   s.overall = s.punctuality*W.punctuality + s.completion*W.completion + s.attendance*W.attendance + s.hours*W.hours + s.delivery*W.delivery;
   m.scores = s; return m;
 }
-function grade(v){ return v>=92?['Excellent','c-good']: v>=82?['Strong','c-good']: v>=72?['Steady','c-info']: v>=60?['Needs focus','c-warn']:['At risk','c-bad']; }
+function grade(v, m){
+  if (m && isFinite(m.lateCount)){
+    const late=m.lateCount||0, lateMin=m.lateMin||0, early=m.earlyCount||0, earlyMin=m.earlyMin||0, avg=late?lateMin/late:0;
+    if (v<60 || avg>5 || late>3 || lateMin>45 || early>2 || earlyMin>90) return ['At risk','c-bad'];
+    if (late>0 || early>0) return ['Need improvement','c-warn'];
+  }
+  return v>=92?['Excellent','c-good']: v>=82?['Strong','c-good']: v>=72?['Steady','c-info']: v>=60?['Need improvement','c-warn']:['At risk','c-bad'];
+}
 
 // ---------- feedback ----------
 function feedback(emp, ym){
@@ -226,11 +242,11 @@ function feedback(emp, ym){
     else if (s.delivery<80){ imp.push(`Only ${m.tasksOnTime} of ${m.tasksDue} due tasks were on time${m.tasksOverdue?`; ${m.tasksOverdue} still overdue`:''}.`);
       exp.push('Update task progress daily and raise blockers at least one day before a deadline.'); }
   }
-  const [g] = grade(s.overall);
+  const [g] = grade(s.overall, m);
   const summary = {Excellent:`An excellent month. ${emp.name} was dependable on time, attendance and delivery.`,
     Strong:'A strong month overall, with a few small areas to tighten.',
     Steady:'A steady month. Consistency on timekeeping will lift the overall result.',
-    'Needs focus':'This month needs focus. Timekeeping and delivery fell below the expected standard.',
+    'Need improvement':'This month needs focus. Timekeeping and delivery fell below the expected standard.',
     'At risk':'Performance this month is below the required standard and needs immediate improvement.'}[g];
   if (!exp.length) exp.push('Keep the same standard next month.');
   return {m,pos,imp,exp,summary};
@@ -572,7 +588,7 @@ const APPLE = `<svg viewBox="0 0 24 24"><path fill="currentColor" d="M16.4 12.6c
 const MS = `<svg viewBox="0 0 24 24"><path fill="#F25022" d="M2 2h9.5v9.5H2z"/><path fill="#7FBA00" d="M12.5 2H22v9.5h-9.5z"/><path fill="#00A4EF" d="M2 12.5h9.5V22H2z"/><path fill="#FFB900" d="M12.5 12.5H22V22h-9.5z"/></svg>`;
 
 function renderAuth(){
-  if (S.loading) return `<div class="loading"><div class="voro-load">${VORA}</div><p>Opening your workspace…</p></div>`;
+  if (S.loading) return `<div class="loading"><img class="voro-load" src="${VORA_EMPTY}" alt="Fitma"><p>Just a moment…</p></div>`;
   return `<div class="auth">
   <section class="auth-art">
     <img class="bigmark" src="${LOGO_WHITE}" alt="">
@@ -645,7 +661,6 @@ function renderApp(){
       <nav class="nav" aria-label="Main"><div class="label">${adminHome?'Admin':isAdmin()?esc(subject().name)+"'s space":'My workspace'}</div>
         ${nav.map(([k,l,ic])=>`<button class="${S.view===k?'on':''}" data-action="nav" data-v="${k}" ${S.view===k?'aria-current="page"':''} title="${l}">${icon(ic)}<span class="lbl">${l}</span>${badge(k)}</button>`).join('')}</nav>
       <div class="rail-foot">
-        <div class="sync"><b><span class="dot"></span>${SYNC.source==='demo'?'Demo data':'Fitma Tick'}</b><br>${SYNC.lastRun?'Updated '+lastSync():'Waiting for data'}</div>
         <div class="me">${avatar(me)}<div class="grow"><div>${esc(mp.name)}</div><small>${me?'ID '+me.id:'Admin'}</small></div></div>
         <button class="btn sm" data-action="changepw" title="Change password">${icon('key',16)}<span class="lbl">Change password</span></button><button class="btn sm" data-action="signout" title="Sign out">${icon('logout',16)}<span class="lbl">Sign out</span></button>
       </div>
@@ -675,7 +690,7 @@ function weekDays(emp){
   return Array.from({length:5},(_,i)=>{ const d=new Date(mon); d.setDate(mon.getDate()+i); return {d, day:(DAYS[emp.id]||{})[key(d)] || {status:'nodata',sessions:[],shifts:[]}}; });
 }
 function eHome(emp){
-  const m = metrics(emp,CUR), s=m.scores, p=profileOf(emp), [g,gc]=grade(s.overall), live=liveStatus(emp), st=streak(emp), bd=badges(emp,CUR);
+  const m = metrics(emp,CUR), s=m.scores, p=profileOf(emp), [g,gc]=grade(s.overall, m), live=liveStatus(emp), st=streak(emp), bd=badges(emp,CUR);
   const hello = NOW.getHours()<12?'Good morning':NOW.getHours()<17?'Good afternoon':'Good evening';
   const due = TASKLIST.filter(t=>t.emp===emp.id && !t.done && (t.ym===CUR)).sort((a,b)=>(a.due||8.64e15)-(b.due||8.64e15)).slice(0,4);
   const filled = [p.position,p.location,p.wa,p.photo].filter(Boolean).length;
@@ -843,7 +858,7 @@ function eRev(emp){
     body = `<div class="card locked-panel"><span class="avatar md" style="background:var(--brand-soft);color:var(--brand)">${icon('lock',22)}</span><div class="bignum">${days}</div><h3>day${days===1?'':'s'} until your ${MN[Number(ym.slice(5))-1]} review opens</h3>
       <p class="muted" style="max-width:46ch">Your report, feedback and PDF unlock on ${fmtD(unlockDate(ym))}, once the month is complete. Meanwhile, your live progress is on Home.</p><button class="btn" data-action="nav" data-v="home">See my month so far</button></div>`;
   } else {
-    const f=feedback(emp,ym), s=f.m.scores, [g,gc]=grade(s.overall);
+    const f=feedback(emp,ym), s=f.m.scores, [g,gc]=grade(s.overall, f.m);
     const factors = f.m.founder ? [['On-time delivery',s.delivery]] : [['Punctuality',s.punctuality],['Full shifts',s.completion],['Attendance',s.attendance],['Hours',s.hours],['On-time delivery',s.delivery]];
     body = `<div class="grid g-main">
       <div class="card fb"><div class="card-head"><h3>${monthLabel(ym)} feedback</h3><span class="chip ${gc}">${g}</span></div>
@@ -889,7 +904,7 @@ const schedText = (emp,d)=>{ const sh=shiftsFor(emp,d); if(sh===null) return 'Fl
 // =========================================================================
 const scored = () => TEAM.filter(isScored);
 function aEval(emp){
-  const m=metrics(emp,CUR), s=m.scores, [g,gc]=grade(s.overall), p=profileOf(emp);
+  const m=metrics(emp,CUR), s=m.scores, [g,gc]=grade(s.overall, m), p=profileOf(emp);
   const fb = feedback(emp,CUR);
   const factors = m.founder ? [['On-time delivery',s.delivery,'all']] :
     [['Punctuality',s.punctuality,'25%'],['Full shifts',s.completion,'15%'],['Attendance',s.attendance,'20%'],['Hours',s.hours,'15%'],['On-time delivery',s.delivery,'25%']];
@@ -957,7 +972,7 @@ function aCompare(){
   const th=(k,l,c='')=>`<th class="sortable ${c}" data-action="sort" data-k="${k}">${l}${S.sort.k===k?(S.sort.d<0?' ↓':' ↑'):''}</th>`;
   return `<div class="pagehead"><div><h1>Compare</h1><p>Scheduled staff are scored on punctuality, full shifts, attendance, hours and delivery. Founders on delivery only. Click a heading to sort.</p></div>${monthSelect('m-cmp',ym)}</div>
   <div class="card"><div class="tablewrap"><table><thead><tr><th>#</th>${th('name','Member')}${th('overall','Score')}${th('punctuality','Punctual','r')}${th('late','Late','r')}${th('early','Left early','r')}${th('leave','Leave','r')}${th('hours','Hours','r')}${th('delivery','Tasks on time','r')}<th>Grade</th></tr></thead><tbody>
-  ${rows.map(({e,m})=>{const s=m.scores,[g,gc]=grade(s.overall); return `<tr class="click" data-action="open-emp" data-e="${e.id}"><td class="rank">${rank.indexOf(e.id)+1}</td>
+  ${rows.map(({e,m})=>{const s=m.scores,[g,gc]=grade(s.overall, m); return `<tr class="click" data-action="open-emp" data-e="${e.id}"><td class="rank">${rank.indexOf(e.id)+1}</td>
     <td><div class="person">${avatar(e,'sm')}<div>${esc(profileOf(e).name)}<small>${e.id}</small></div></div></td><td>${ring(s.overall,42,5,'','small')}</td>
     <td class="r">${m.founder?'<span class="muted">Flexible</span>':pct(s.punctuality)}</td>
     <td class="r">${m.founder?'—':`${m.lateCount}× <span class="muted">${m.lateMin}m</span>`}</td>
