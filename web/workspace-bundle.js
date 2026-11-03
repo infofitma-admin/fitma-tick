@@ -931,7 +931,7 @@ function eAtt(emp){
     <div class="card" style="align-self:start"><div class="card-head"><div><span class="label">Selected day</span><h3>${fmtD(sd)}</h3></div>${statusChip(D.status)}</div>
       ${dayDetail(emp,D,sd)}</div>
   </div>
-  ${m.founder?'':`<div class="card"><div class="card-head"><div><h3>Things to watch</h3><p>Every late start, early finish and leave day this month</p></div><span class="chip ${ex.length?'c-warn':'c-good'}">${ex.length} recorded</span></div>
+  ${m.founder?'':`<div class="card"><div class="card-head"><div><h3>Reminders & Notes</h3><p>Every late start, early finish and leave day this month</p></div><span class="chip ${ex.length?'c-warn':'c-good'}">${ex.length} recorded</span></div>
   ${ex.length?`<div class="list">${ex.map(x=>{const sh=x.sessions.filter(s=>s.kind==='shift'), l=sh.reduce((a,s)=>a+s.late,0), e=sh.reduce((a,s)=>a+s.early,0);
     const what = ['leave','covered'].includes(x.status)? `${esc(x.reason)} · ${fmtH(x.lost)} missed${x.covered?`, ${fmtH(x.covered)} made up`:', not made up'}` : [l?`Started ${l} min late`:'', e?`Finished ${e} min early`:''].filter(Boolean).join(' · ');
     return `<button class="li" style="width:100%;background:none;border-left:0;border-right:0;border-top:0;text-align:left;cursor:pointer;color:inherit" data-action="selday" data-k="${x.k}"><div class="grow"><div class="t1">${fmtD(x.d)}</div><div class="t2">${what}</div></div>${statusChip(x.status)}</button>`;}).join('')}</div>`
@@ -946,9 +946,9 @@ function dayDetail(emp, D, d){
   }
   if (!D.sessions.length) return '<p class="muted">No time logged on this day.</p>';
   const lo=480, hi=1200, x=v=>((Math.max(lo,Math.min(hi,v))-lo)/(hi-lo)*100).toFixed(2);
-  return `<div class="tl"><div class="tl-bar">${(D.shifts||[]).map(([s,e])=>`<span class="sch" style="left:${x(s)}%;width:${x(e)-x(s)}%"></span>`).join('')}${D.sessions.map(s=>`<span class="act ${s.kind==='makeup'?'mk':''}" style="left:${x(s.in)}%;width:${Math.max(.8,x(s.out)-x(s.in))}%"></span>`).join('')}</div>
+  return `<div class="tl"><div class="tl-bar">${D.sessions.map(s=>`<span class="act ${s.kind==='makeup'?'mk':''}" style="left:${x(s.in)}%;width:${Math.max(.8,x(s.out)-x(s.in))}%"></span>`).join('')}</div>
     <div class="tl-axis"><span>8 AM</span><span>11</span><span>2 PM</span><span>5</span><span>8 PM</span></div>
-    <div class="legend"><span><i class="pin" style="border:1.5px dashed var(--steel);border-radius:2px"></i>Scheduled</span><span><i class="pin p-ontime"></i>Tracked</span><span><i class="pin" style="background:var(--steel-2)"></i>Make-up</span></div></div>
+    <div class="legend"><span><i class="pin p-ontime"></i>Tracked</span><span><i class="pin" style="background:var(--steel-2)"></i>Make-up</span></div></div>
     <div class="list" style="margin-top:8px">${D.sessions.map(s=>`<div class="li"><div class="grow"><div class="t1 num">${fmtT(s.in)} – ${fmtT(s.out)}</div><div class="t2">${s.kind==='makeup'?'Make-up time for leave':s.kind==='flex'?'Tracked session':`Shift ${fmtT(s.s)} – ${fmtT(s.e)}`}</div></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${s.late?`<span class="chip c-warn">${s.late} min late</span>`:''}${s.early?`<span class="chip c-early">${s.early} min early</span>`:''}${s.kind==='shift'&&!s.late&&!s.early?'<span class="chip c-good">On time</span>':''}${s.ot>=15?`<span class="chip c-info">+${s.ot} min</span>`:''}</div></div>`).join('')}</div>`;
 }
