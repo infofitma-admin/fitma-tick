@@ -86,8 +86,12 @@ function mode() {
   return 'tracking';
 }
 
+let lastActionsKey = null;
 function renderActions(m) {
   const box = $('actions');
+  const key = !state.tracking ? 'ready' : (m === 'paused' ? 'paused' : 'active');
+  if (key === lastActionsKey) return;   // rebuild buttons only when they change, so a click is never dropped mid-repaint
+  lastActionsKey = key;
   if (!state.tracking) {
     box.innerHTML = '<button class="btn primary big" data-act="start">Start tracking</button>';
   } else if (m === 'paused') {
@@ -103,7 +107,7 @@ function render() {
   const onLogin = !state.signedIn;
   $('view-login').hidden = !onLogin;
   $('view-track').hidden = onLogin;
-  if (onLogin) return;
+  if (onLogin) { lastActionsKey = null; return; }
 
   $('who-name').textContent = state.name || '';
   if (!projectsLoaded) loadProjects();

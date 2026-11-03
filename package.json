@@ -1,7 +1,7 @@
 {
   "name": "fitma-tick",
   "productName": "Fitma Tick",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Fitma Tick — time and activity tracker for the Fitma team.",
   "author": "Fitma",
   "license": "UNLICENSED",
@@ -36,18 +36,15 @@
       "artifactName": "Fitma-Tick-Setup.${ext}"
     },
     "nsis": {
-      "oneClick": false,
+      "oneClick": true,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
-      "installerSidebar": "build/installerSidebar.bmp",
-      "uninstallerSidebar": "build/uninstallerSidebar.bmp",
-      "installerHeader": "build/installerHeader.bmp",
       "installerIcon": "src/assets/icon.ico",
       "uninstallerIcon": "src/assets/icon.ico",
       "installerHeaderIcon": "src/assets/icon.ico",
       "shortcutName": "Fitma Tick",
       "createDesktopShortcut": true,
-      "runAfterFinish": true
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
     },
     "mac": {
       "target": [

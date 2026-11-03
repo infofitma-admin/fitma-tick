@@ -278,7 +278,7 @@ function resumeTracking() {
 let win = null, tray = null;
 function createWindow() {
   win = new BrowserWindow({
-    width: 760, height: 600, minWidth: 420, minHeight: 520,
+    width: 380, height: 600, minWidth: 360, minHeight: 540,
     backgroundColor: '#f3f5f7',
     title: 'Fitma Tick',
     icon: iconPath(),
