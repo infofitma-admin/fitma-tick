@@ -430,7 +430,7 @@ function setMonths(dataEndKeys){
 //   • inside the Apps Script web app  -> google.script.run.apiCall(...)   (unchanged)
 //   • on a fast static host (GitHub Pages) -> cross-origin fetch() to the /exec URL
 // The server routes a {action:'api', path, body, token} POST through the same apiCall().
-const FW_EXEC = (typeof window!=='undefined' && window.FW_EXEC) || 'https://script.google.com/macros/s/AKfycbxLC4cKnYrrO2C9Nk0czFRDW0IdfsQNTwPCQZXOqAY7DqkVarAGOV9DOqQeDPlQAWPu/exec';
+const FW_EXEC = (typeof window!=='undefined' && window.FW_EXEC) || 'https://script.google.com/macros/s/AKfycbzig98s-ZzuHELem-krcoma0AtcNHIxRCVKIK0LGjTex7eYKiosnRtLeFR32lPedTI/exec';
 let TOKEN = ''; try { TOKEN = localStorage.getItem('fw:tok') || ''; } catch(e){}
 function setToken(t){ TOKEN = t || ''; try { if (t) localStorage.setItem('fw:tok', t); else localStorage.removeItem('fw:tok'); } catch(e){} }
 function api(path, body){
