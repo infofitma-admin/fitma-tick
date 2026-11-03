@@ -622,7 +622,7 @@ function renderAuth(){
       :`<div class="field"><label for="f-email">Email</label><input id="f-email" type="email" placeholder="name@gmail.com" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
         <div class="field"><label for="f-pass">Password</label><div class="pw-wrap"><input id="f-pass" type="password" placeholder="Your password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false"><button type="button" class="pw-eye" data-action="toggle-pw" data-target="f-pass" aria-label="Show password">${icon('eye',18)}</button></div></div>
         <p class="hint" id="auth-msg">First time? Use the starter password from your admin. You'll set your own next.</p>
-        <button class="btn primary" type="submit">Sign in</button>`}
+        <button class="btn primary" type="submit">Sign in</button><button type="button" class="link" data-action="forgot" style="justify-self:center;margin-top:-2px">Forgot your password?</button>`}
       <div class="note">${icon('key',18)}<p><b>Access note.</b> ${ACCESS_NOTE.replace(' the admin can reset a password here at any time.',' ask the admin if you can’t get in.')}</p></div>
     </form>
   </section>
@@ -1112,7 +1112,7 @@ function aRev(){
 
 function aAccess(){
   const unset = TEAM.filter(e=>e.plan==='unset'||!e.plan);
-  return `<div class="pagehead"><div><h1>Team & access</h1><p>Each person signs in with their email and password. Set schedules here, and reset a password if someone is locked out.</p></div>${sampleTag}</div>
+  return `<div class="pagehead"><div><h1>Team & access</h1><p>Each person signs in with their email and password. Set schedules here, and reset a password if someone is locked out.</p></div><div style="display:flex;gap:8px;align-items:center">${sampleTag}<button class="btn primary" data-action="addmember">+ Add member</button></div></div>
   <div class="note" style="font-size:13.5px">${icon('key',18)}<p><b>Access note.</b> ${ACCESS_NOTE}</p></div>
   ${unset.length?`<div class="nudge"><div><b>${unset.length} member${unset.length>1?'s':''} without a schedule</b><p class="muted small">Set a schedule for ${unset.map(e=>esc(e.name)).join(', ')} so they can be scored.</p></div></div>`:''}
   <div class="card"><div class="card-head"><div><h3>Members</h3><p>Schedule and Friday hours feed the scoring; email is the sign-in address</p></div></div>
@@ -1168,7 +1168,7 @@ function aSettings(){
 
 function aShots(){
   const emp = S.shotEmp ? empById(S.shotEmp) : null;
-  return `<div class="pagehead"><div><h1>Screenshots</h1><p>Recent screenshots from Fitma Tick. Pick a person to load their latest.</p></div></div>
+  return `<div class="pagehead"><div><h1>Screenshots</h1><p>Recent screenshots from Fitma Tick. Pick a person, then a month if you want a specific one.</p></div><label class="muted small" style="display:inline-flex;gap:8px;align-items:center">Show <select class="fchip" id="shots-ym"><option value="">Latest</option>${MONTHS.slice().reverse().map(m=>`<option value="${m}" ${S.shotYm===m?'selected':''}>${monthLabel(m)}</option>`).join('')}</select></label></div>
   <div class="chips">${TEAM.map(e=>`<button class="fchip ${S.shotEmp===e.id?'on':''}" data-action="shots-emp" data-e="${e.id}">${avatar(e,'sm')}${esc(e.name)}</button>`).join('')}</div>
   ${!emp?'<div class="card"><p class="muted">Choose a team member above.</p></div>'
     : S.shotsLoading?'<div class="card"><p class="muted">Loading screenshots…</p></div>'
@@ -1313,6 +1313,8 @@ document.addEventListener('click', async ev=>{
     case 'close-chooser': S.chooser=null; render(); break;
     case 'signin': demoSignIn(el.dataset.id); break;
     case 'signout': signOutNow(); break;
+    case 'forgot': showForgot(); break;
+    case 'addmember': showAddMember(); break;
     case 'changepw': S.view='password'; render(); window.scrollTo(0,0); break;
     case 'nav': S.view=el.dataset.v; S.projFilter='all'; render(); window.scrollTo(0,0); break;
     case 'open-emp': S.viewing=el.dataset.e; S.view='eval'; S.projFilter='all'; render(); window.scrollTo(0,0); break;
@@ -1380,7 +1382,7 @@ function showProjEditor(key, newEmpId){
   });
 }
 async function loadShots(id){ S.shotEmp=id; S.shots=null; S.shotsLoading=true; render();
-  try { const r = await api('/shots', { empId:id }); S.shots = r.shots || []; }
+  try { const r = S.shotYm ? await api('/shotsby', { empId:id, ym:S.shotYm }) : await api('/shots', { empId:id }); S.shots = r.shots || []; }
   catch(err){ S.shots = []; if(!DEMO) toast(err.message||'Couldn\u2019t load screenshots.'); }
   S.shotsLoading=false; render(); }
 async function saveDownloads(){ const win=(document.getElementById('dl-win').value||'').trim(), mac=(document.getElementById('dl-mac').value||'').trim();
@@ -1410,6 +1412,62 @@ function showReset(e, pw){
   o.addEventListener('click', ev=>{ if(ev.target.closest('[data-close]')||!ev.target.closest('[data-stop]')) o.remove(); });
   document.body.appendChild(o);
 }
+function showForgot(){
+  let o=document.querySelector('.overlay.forgot'); if(o) o.remove();
+  o=document.createElement('div'); o.className='overlay forgot'; o.innerHTML=`<div class="sheet" style="max-width:400px" data-stop="1">
+    <div class="sheet-head"><span class="label">Password help</span><h3>Reset your password</h3></div>
+    <div style="padding:20px;display:grid;gap:12px">
+      <p class="muted small">Enter the email your account uses. If it is registered, we will send a temporary password you can sign in with, then set your own.</p>
+      <div class="field"><label for="fg-email">Email</label><input id="fg-email" type="email" placeholder="name@gmail.com" autocapitalize="off" autocorrect="off" spellcheck="false" class="fchip" style="width:100%;min-width:0"></div>
+      <p class="hint" id="fg-msg"></p>
+      <div style="display:flex;gap:8px"><button class="btn" data-close style="flex:1">Cancel</button><button class="btn primary" id="fg-send" style="flex:1">Send temporary password</button></div>
+    </div></div>`;
+  o.addEventListener('click', ev=>{ if(ev.target.closest('[data-close]')||!ev.target.closest('[data-stop]')) o.remove(); });
+  document.body.appendChild(o);
+  const msgEl=o.querySelector('#fg-msg'); const say=(t,bad)=>{ if(msgEl){ msgEl.textContent=t; msgEl.className='hint'+(bad?' err':''); } };
+  o.querySelector('#fg-send').addEventListener('click', async ()=>{
+    const email=(o.querySelector('#fg-email').value||'').trim().toLowerCase();
+    if(!/^\S+@\S+\.\S+$/.test(email)) return say('Enter a valid email address.', true);
+    const btn=o.querySelector('#fg-send'); btn.disabled=true; say('Sending\u2026');
+    try{ await api('/forgot',{email}); o.remove(); toast('If that email is registered, a temporary password is on its way. Check your inbox.'); }
+    catch(e){ btn.disabled=false; say(e.message||'Could not send right now. Try again.', true); }
+  });
+  try{ o.querySelector('#fg-email').focus(); }catch(_e){}
+}
+function showAddMember(){
+  let o=document.querySelector('.overlay.addmem'); if(o) o.remove();
+  const inp='class="fchip" style="width:100%;min-width:0"';
+  o=document.createElement('div'); o.className='overlay addmem'; o.innerHTML=`<div class="sheet" style="max-width:470px" data-stop="1">
+    <div class="sheet-head"><span class="label">Team &amp; access</span><h3>Add a team member</h3></div>
+    <div style="padding:20px;display:grid;gap:12px">
+      <p class="muted small">Creates their account and emails them a starter password. They set their own on first sign-in, and can use it for Fitma Tick too.</p>
+      <div class="field"><label for="am-name">Full name</label><input id="am-name" type="text" ${inp}></div>
+      <div class="field"><label for="am-email">Sign-in email</label><input id="am-email" type="email" placeholder="name@gmail.com" autocapitalize="off" autocorrect="off" spellcheck="false" ${inp}></div>
+      <div class="field"><label for="am-pos">Position</label><input id="am-pos" type="text" placeholder="e.g. Intern" ${inp}></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field"><label for="am-plan">Schedule</label><select id="am-plan" ${inp}>${['std4','std3','founder','unset'].map(p=>`<option value="${p}">${PLAN_LABEL[p]}</option>`).join('')}</select></div>
+        <div class="field"><label for="am-gen">Friday hours</label><select id="am-gen" ${inp}><option value="">Not set</option><option value="M">Men\u2019s</option><option value="F">Women\u2019s</option></select></div>
+      </div>
+      <p class="hint" id="am-msg"></p>
+      <div style="display:flex;gap:8px"><button class="btn" data-close style="flex:1">Cancel</button><button class="btn primary" id="am-save" style="flex:1">Create account</button></div>
+    </div></div>`;
+  o.addEventListener('click', ev=>{ if(ev.target.closest('[data-close]')||!ev.target.closest('[data-stop]')) o.remove(); });
+  document.body.appendChild(o);
+  const msgEl=o.querySelector('#am-msg'); const say=(t,bad)=>{ if(msgEl){ msgEl.textContent=t; msgEl.className='hint'+(bad?' err':''); } };
+  o.querySelector('#am-save').addEventListener('click', async ()=>{
+    const g=id=>{ const el=o.querySelector(id); return el?(el.value||'').trim():''; };
+    const name=g('#am-name'), email=g('#am-email').toLowerCase(), position=g('#am-pos'),
+          plan=o.querySelector('#am-plan').value, gender=o.querySelector('#am-gen').value;
+    if(!name) return say('Enter the person\u2019s name.', true);
+    if(!/^\S+@\S+\.\S+$/.test(email)) return say('Enter a valid email address.', true);
+    if(email===ADMIN.email) return say('That is the admin address. Use the member\u2019s own email.', true);
+    if(TEAM.find(x=>accessEmail(x)===email)) return say('That email already has an account.', true);
+    const btn=o.querySelector('#am-save'); btn.disabled=true; say('Creating\u2026');
+    try{ await api('/addmember',{name,email,plan,gender,position}); o.remove(); await loadData(); render(); toast(name+' added. A starter password was emailed to them.'); }
+    catch(e){ btn.disabled=false; say(e.message||'Could not add the member.', true); }
+  });
+  try{ o.querySelector('#am-name').focus(); }catch(_e){}
+}
 async function saveMemberRow(id, btn){
   const e = empById(id); const email = document.getElementById('acc-'+id).value.trim().toLowerCase();
   const plan = document.getElementById('plan-'+id).value, gender = document.getElementById('gen-'+id).value;
@@ -1422,8 +1480,8 @@ async function saveMemberRow(id, btn){
   try { await saveMemberAll(id, upd); fillGaps(); render(); toast(`Saved ${e.name}.`); }
   catch(err){ btn.disabled=false; toast(err.message || 'Couldn’t save. Try again.'); }
 }
-document.addEventListener('change', ev=>{ const id=ev.target.dataset.change; if(!id) return; S.month=ev.target.value; S.selDay=null; S.projFilter='all'; render(); });
-document.addEventListener('keydown', ev=>{ if(ev.key==='Escape'){ if(S.preview||S.chooser){ S.preview=null; S.chooser=null; render(); } document.querySelector('.overlay.reset')?.remove(); } });
+document.addEventListener('change', ev=>{ if(ev.target.id==='shots-ym'){ S.shotYm=ev.target.value||null; if(S.shotEmp) loadShots(S.shotEmp); return; } const id=ev.target.dataset.change; if(!id) return; S.month=ev.target.value; S.selDay=null; S.projFilter='all'; render(); });
+document.addEventListener('keydown', ev=>{ if(ev.key==='Escape'){ if(S.preview||S.chooser){ S.preview=null; S.chooser=null; render(); } document.querySelector('.overlay.reset')?.remove(); document.querySelector('.overlay.forgot')?.remove(); document.querySelector('.overlay.addmem')?.remove(); } });
 window.addEventListener('resize', ()=>{ if(S.preview) fitPreview(); });
 
 function bindForms(){
