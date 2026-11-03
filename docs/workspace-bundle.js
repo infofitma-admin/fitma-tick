@@ -1821,6 +1821,7 @@ function bindForms(){
     if (!pass) return say('Enter your password.', true);
     const btn=af.querySelector('button[type=submit]'); btn.disabled=true;
     try { const r = await api('/login', { email, password:pass }); setToken(r.token); S.authMsg='';
+      try{ if(window.PasswordCredential && navigator.credentials && navigator.credentials.store){ await navigator.credentials.store(new PasswordCredential({ id:email, password:pass, name:email })); } }catch(_){}
       S.mustChange = !!r.mustChange; await startSession(); }
     catch(e){ btn.disabled=false; say(e.message, true); }
   });
@@ -1832,6 +1833,7 @@ function bindForms(){
     if (n1!==n2) return say('The two new passwords don’t match.', true);
     const btn=pwf.querySelector('button[type=submit]'); btn.disabled=true;
     try { await changePassword(oldP, n1); S.mustChange=false;
+      try{ var _em=(S.user&&S.user.email)||(subject&&subject()&&subject().email)||''; if(_em && window.PasswordCredential && navigator.credentials && navigator.credentials.store){ await navigator.credentials.store(new PasswordCredential({ id:_em, password:n1, name:_em })); } }catch(_){}
       if (S.view==='password') S.view='profile';
       if (!S.user){ await startSession(); } else { await loadData().catch(()=>{}); render(); }
       toast('Password changed'); }
