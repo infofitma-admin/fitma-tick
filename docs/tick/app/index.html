@@ -164,6 +164,7 @@ tr:last-child td{border-bottom:none}
 </style>
 </head>
 <body>
+
 <script>try{document.documentElement.dataset.theme='light'}catch(e){}</script>
 <div id="app"><div class="loader"><div class="spin"></div><div>Starting Fitma Tick…</div></div></div>
 
@@ -300,13 +301,18 @@ const ICON={
   shots:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="13" rx="2"/><circle cx="12" cy="12.5" r="3.2"/><path d="M8 6l1.5-2h5L16 6"/></svg>',
   billing:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 10h19"/></svg>',
   operator:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg>',
-  reports:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v16h16"/><path d="M8 16l3-4 3 2 4-6"/></svg>'};
+  reports:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v16h16"/><path d="M8 16l3-4 3 2 4-6"/></svg>',
+  settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'};
 function isMgr(){return ["owner","admin"].includes(state.membership.role);}
+const PLAN_RANK={trial:3,internal:3,starter:1,pro:2,business:3,enterprise:3};
+function planAtLeast(name){return (PLAN_RANK[(state.company&&state.company.plan_code)]||0)>=(PLAN_RANK[name]||0);}
+function planName(){const m={trial:"Free trial",starter:"Starter",pro:"Pro",business:"Business",internal:"Fitma Internal",enterprise:"Enterprise"};return m[state.company.plan_code]||state.company.plan_code;}
 function navItems(){
   const n=[["overview","Overview"],["timesheet","My timesheet"]];
   if(isMgr()) n.push(["team","Team"]);
   n.push(["projects","Projects & tasks"],["shots","Screenshots"]);
   if(isMgr()) n.push(["reports","Reports"]);
+  if(isMgr()) n.push(["settings","Settings"]);
   if(isMgr()) n.push(["billing","Billing & plan"]);
   if(state.isPlatformAdmin) n.push(["operator","Operator"]);
   return n;
@@ -343,7 +349,7 @@ function renderShell(){
 }
 function closeRail(){const r=app.querySelector("#rail"),s=app.querySelector("#scrim");if(r)r.classList.remove("open");if(s)s.hidden=true;}
 function setActive(v){app.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
-  const titles={overview:"Overview",timesheet:"My timesheet",team:"Team",projects:"Projects & tasks",shots:"Screenshots",reports:"Reports",billing:"Billing & plan",operator:"Operator — all companies"};
+  const titles={overview:"Overview",timesheet:"My timesheet",team:"Team",projects:"Projects & tasks",shots:"Screenshots",reports:"Reports",settings:"Settings",billing:"Billing & plan",operator:"Operator — all companies"};
   app.querySelector("#viewtitle").textContent=titles[v]||v;}
 function content(){return app.querySelector("#content");}
 function renderLoader(t){app.innerHTML=`<div class="loader"><div class="spin"></div><div>${esc(t||"Loading…")}</div></div>`;}
@@ -358,6 +364,7 @@ async function loadView(v){
     else if(v==="projects") await viewProjects();
     else if(v==="shots") await viewShots();
     else if(v==="reports") await viewReports();
+    else if(v==="settings") await viewSettings();
     else if(v==="billing") await viewBilling();
     else if(v==="operator") await viewOperator();
   }catch(err){ content().innerHTML=`<div class="card"><div class="msg err" style="margin:16px">${esc(err.message||err)}</div></div>`; }
@@ -530,12 +537,14 @@ async function viewTeam(){
   c.innerHTML=`
    <div class="card">
      <div class="sec-head" style="padding:16px 18px 10px"><h3>Members</h3><span class="pill muted">${mems?.length||0}</span></div>
-     <table><thead><tr><th>Member</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>
-     ${(mems||[]).map(m=>{const nm=pm[m.user_id]||(m.user_id===state.user.id?"You":"Member");const self=m.user_id===state.user.id;
+     <table><thead><tr><th>Member</th><th>Title</th><th>Team</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>
+     ${(mems||[]).map(m=>{const nm=pm[m.user_id]||(m.user_id===state.user.id?"You":"Member");const self=m.user_id===state.user.id;const mg=isMgr();
        return `<tr><td><div style="display:flex;align-items:center;gap:9px"><div class="avatar" style="width:26px;height:26px;font-size:11px">${esc(initials(nm))}</div>${esc(nm)}${self?' <span class="muted">(you)</span>':''}</div></td>
+       <td>${m.title?esc(m.title):'<span class="faint">—</span>'}</td>
+       <td>${m.team?`<span class="pill muted">${esc(m.team)}</span>`:'<span class="faint">—</span>'}</td>
        <td><span class="pill ${["owner","admin"].includes(m.role)?'accent':'muted'}">${esc(m.role)}</span></td>
        <td><span class="pill good">${esc(m.status)}</span></td>
-       <td style="text-align:right">${(!self&&m.role!=='owner')?`<button class="btn ghost sm" data-rm="${m.id}">Remove</button>`:''}</td></tr>`;}).join("")}
+       <td style="text-align:right;white-space:nowrap">${mg?`<button class="btn ghost sm" data-edit="${m.id}">Edit</button>`:''}${(!self&&m.role!=='owner'&&mg)?` <button class="btn ghost sm" data-rm="${m.id}">Remove</button>`:''}</td></tr>`;}).join("")}
      </tbody></table>
    </div>
    ${(invites||[]).length?`<div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Pending invites</h3></div>
@@ -547,6 +556,26 @@ async function viewTeam(){
   c.querySelectorAll("[data-rm]").forEach(b=>b.onclick=async()=>{b.disabled=true;await sb.from("memberships").delete().eq("id",b.dataset.rm);loadView("team");});
   c.querySelectorAll("[data-cancel]").forEach(b=>b.onclick=async()=>{b.disabled=true;await sb.from("invites").delete().eq("id",b.dataset.cancel);loadView("team");});
   c.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>copyText(b.dataset.copy,b));
+  c.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{const m=(mems||[]).find(x=>x.id===b.dataset.edit);if(m)memberModal(m,pm[m.user_id]||"Member");});
+}
+function memberModal(m,nm){
+  const self=m.user_id===state.user.id;
+  showModal(`<h3 style="margin-bottom:4px">Edit ${esc(nm)}</h3>
+    <p class="muted" style="margin:0 0 16px">Set their title, team and role.</p>
+    <div class="field"><label>Title</label><input id="m_title" placeholder="e.g. Designer" value="${esc(m.title||'')}"></div>
+    <div class="field"><label>Team</label><input id="m_team" placeholder="e.g. Product" value="${esc(m.team||'')}"></div>
+    <div class="field"><label>Role</label><select id="m_role" ${m.role==='owner'||self?'disabled':''}>
+      <option value="member" ${m.role==='member'?'selected':''}>Member — tracks time, sees own data</option>
+      <option value="admin" ${m.role==='admin'?'selected':''}>Admin — manages the team</option>
+      ${m.role==='owner'?'<option value="owner" selected>Owner</option>':''}</select>
+      ${self?'<p class="hint">You can\'t change your own role.</p>':''}</div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" onclick="window._closeModal()">Cancel</button><button class="btn pri" id="m_save">Save</button></div>`);
+  document.getElementById("m_save").onclick=async()=>{
+    const upd={title:document.getElementById("m_title").value.trim()||null,team:document.getElementById("m_team").value.trim()||null};
+    if(!self&&m.role!=='owner')upd.role=document.getElementById("m_role").value;
+    const {error}=await sb.from("memberships").update(upd).eq("id",m.id);
+    if(error){alert2(error.message);return;}_closeModal();loadView("team");
+  };
 }
 function inviteModal(){
   showModal(`<h3 style="margin-bottom:6px">Invite a teammate</h3>
@@ -777,21 +806,23 @@ let _reportExport=null;
 
 async function viewReports(){
   const c=content();
+  const pro=planAtLeast("pro"); const proOnly={attendance:1,apps:1};
   const tabs=[["hours","Tracked hours"],["timesheet","Timesheet"],["attendance","Attendance"],["apps","Apps & websites"]];
   c.innerHTML=`
    <div class="card" style="padding:12px 16px">
      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-       <div class="tabs" style="margin:0;flex:0 1 auto;flex-wrap:wrap">${tabs.map(([k,l])=>`<button data-rt="${k}" class="${reportsState.tab===k?'on':''}">${l}</button>`).join("")}</div>
+       <div class="tabs" style="margin:0;flex:0 1 auto;flex-wrap:wrap">${tabs.map(([k,l])=>`<button data-rt="${k}" class="${reportsState.tab===k?'on':''}">${l}${proOnly[k]&&!pro?' \u{1F512}':''}</button>`).join("")}</div>
        <select id="rrange" style="margin-left:auto;padding:8px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);color:var(--fg)">
          <option value="today">Today</option><option value="week">This week</option><option value="month">This month</option><option value="last7">Last 7 days</option><option value="last30">Last 30 days</option></select>
-       <button class="btn sm" id="rexport">Export CSV</button>
+       <button class="btn sm" id="rexport" ${pro?'':'disabled title="CSV export is included from Pro"'}>Export CSV</button>
      </div>
    </div>
    <div id="rbody"><div class="loader" style="min-height:160px"><div class="spin"></div></div></div>`;
   c.querySelector("#rrange").value=reportsState.range;
   c.querySelectorAll("[data-rt]").forEach(b=>b.onclick=()=>{reportsState.tab=b.dataset.rt;viewReports();});
   c.querySelector("#rrange").onchange=e=>{reportsState.range=e.target.value;viewReports();};
-  c.querySelector("#rexport").onclick=()=>{ if(_reportExport) downloadCsv(_reportExport.name,_reportExport.rows); };
+  c.querySelector("#rexport").onclick=()=>{ if(pro&&_reportExport) downloadCsv(_reportExport.name,_reportExport.rows); };
+  if(proOnly[reportsState.tab]&&!pro){ c.querySelector("#rbody").innerHTML=`<div class="card"><div class="empty"><div style="font-size:15px;font-weight:600;color:var(--fg)">This report is on the Pro plan</div><p class="hint" style="max-width:440px;margin:8px auto 0">Attendance and Apps &amp; websites reports, plus CSV export, are included from Pro. <a href="#" onclick="window.loadView('billing');return false">See plans</a>.</p></div></div>`; return; }
 
   const {from,to}=reportRange(reportsState.range);
   const fromISO=from.toISOString(), toISO=to.toISOString();
@@ -882,6 +913,56 @@ async function viewReports(){
   }
 }
 
+/* =================== SETTINGS =================== */
+function lockPill(plan){return `<span class="pill warn" style="font-size:11px">${plan} plan</span>`;}
+async function viewSettings(){
+  const c=content();
+  const s=state.company.settings||{};
+  const sc=s.screenshots||{}, idle=s.idle||{}, sch=s.schedule||{};
+  const enabled=sc.enabled!==false, interval=sc.intervalMin||10, blur=!!sc.blur;
+  const idleLimit=idle.limitMin||5;
+  const startTime=sch.startTime||"09:00";
+  const workdays=Array.isArray(sch.workdays)?sch.workdays:[1,2,3,4,5];
+  const canFreq=planAtLeast("business"), canIdle=planAtLeast("pro");
+  const dayNames=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]; const dayIdx=[1,2,3,4,5,6,0];
+  const row=(label,hint,control)=>`<div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-top:1px solid var(--border)"><div style="flex:1;min-width:0"><div style="font-weight:600">${label}</div>${hint?`<div class="hint">${hint}</div>`:''}</div><div style="flex:none">${control}</div></div>`;
+  c.innerHTML=`
+   <div class="card" style="padding:18px"><div class="sec-head"><div>
+     <div class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Current plan</div>
+     <div style="font-family:var(--fh);font-size:20px;font-weight:700;margin-top:2px">${esc(planName())}</div></div>
+     <button class="btn sm" onclick="window.loadView('billing')">Change plan</button></div></div>
+
+   <div class="card" style="padding:4px 18px 18px"><div class="sec-head" style="padding:16px 0 0"><h3>Screenshots</h3></div>
+     ${row("Capture screenshots","Take periodic screenshots while the timer runs.",`<input type="checkbox" id="s_en" ${enabled?'checked':''} style="width:18px;height:18px">`)}
+     ${row("How often"+(canFreq?"":" "+lockPill("Business")),canFreq?"Minutes between screenshots.":"Upgrade to Business to control screenshot frequency.",`<input type="number" id="s_int" min="3" max="60" value="${interval}" ${canFreq?'':'disabled'} style="width:80px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);color:var(--fg)"> <span class="muted" style="font-size:13px">min</span>`)}
+     ${row("Blur screenshots <span class='pill muted' style='font-size:11px'>coming soon</span>","Blur the image for privacy while still showing work is happening.",`<input type="checkbox" id="s_blur" ${blur?'checked':''} disabled style="width:18px;height:18px">`)}
+   </div>
+
+   <div class="card" style="padding:4px 18px 18px"><div class="sec-head" style="padding:16px 0 0"><h3>Idle detection ${canIdle?'':lockPill("Pro")}</h3></div>
+     ${row("Pause after inactivity",canIdle?"Stop counting time after this many minutes of no keyboard or mouse.":"Upgrade to Pro for idle detection.",`<input type="number" id="s_idle" min="1" max="60" value="${idleLimit}" ${canIdle?'':'disabled'} style="width:80px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);color:var(--fg)"> <span class="muted" style="font-size:13px">min</span>`)}
+   </div>
+
+   <div class="card" style="padding:4px 18px 18px"><div class="sec-head" style="padding:16px 0 0"><h3>Work schedule</h3><span class="muted" style="font-size:13px">used for attendance</span></div>
+     ${row("Day starts at","When the working day is expected to start.",`<input type="time" id="s_start" value="${startTime}" style="padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);color:var(--fg)">`)}
+     ${row("Working days","",`<div style="display:flex;gap:6px;flex-wrap:wrap">${dayNames.map((d,i)=>`<label style="display:inline-flex;align-items:center;gap:4px;font-size:13px"><input type="checkbox" class="s_wd" value="${dayIdx[i]}" ${workdays.includes(dayIdx[i])?'checked':''}> ${d}</label>`).join("")}</div>`)}
+   </div>
+
+   <div class="row" style="justify-content:flex-end"><span id="s_msg" class="muted" style="align-self:center;font-size:13px"></span><button class="btn pri" id="s_save">Save settings</button></div>`;
+
+  c.querySelector("#s_save").onclick=async()=>{
+    const btn=c.querySelector("#s_save"); btn.disabled=true; btn.textContent="Saving…";
+    const settings={
+      screenshots:{enabled:c.querySelector("#s_en").checked, intervalMin:Math.max(3,Math.min(60,+c.querySelector("#s_int").value||10)), blur:false},
+      idle:{limitMin:Math.max(1,Math.min(60,+c.querySelector("#s_idle").value||5))},
+      schedule:{startTime:c.querySelector("#s_start").value||"09:00", workdays:[...c.querySelectorAll(".s_wd:checked")].map(x=>+x.value)}
+    };
+    const {error}=await sb.from("companies").update({settings}).eq("id",cid());
+    if(error){ c.querySelector("#s_msg").innerHTML=`<span style="color:var(--crit)">${esc(error.message)}</span>`; }
+    else { state.company.settings=settings; c.querySelector("#s_msg").textContent="Saved ✓"; setTimeout(()=>{const m=c.querySelector("#s_msg");if(m)m.textContent="";},2000); }
+    btn.disabled=false; btn.textContent="Save settings";
+  };
+}
+
 /* =================== OPERATOR (platform admin) =================== */
 async function viewOperator(){
   const c=content();
@@ -933,6 +1014,7 @@ window.loadView=loadView;
 
 boot();
 </script>
+
 
 </body>
 </html>
