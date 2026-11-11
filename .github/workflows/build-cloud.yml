@@ -1,0 +1,77 @@
+name: Build Fitma Tick (Cloud)
+
+# Builds the commercial (cloud) desktop tracker for Windows + macOS (+ Linux),
+# unsigned, and publishes the installers to a GitHub Release.
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - 'desktop-cloud/**'
+      - '.github/workflows/build-cloud.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: --win
+          - os: macos-latest
+            target: --mac
+          - os: ubuntu-latest
+            target: --linux
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: desktop-cloud
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - name: Build
+        run: npx electron-builder ${{ matrix.target }} --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fitma-tick-cloud-${{ matrix.os }}
+          path: |
+            desktop-cloud/dist/*.exe
+            desktop-cloud/dist/*.dmg
+            desktop-cloud/dist/*.zip
+            desktop-cloud/dist/*.AppImage
+          if-no-files-found: ignore
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all installers
+        uses: actions/download-artifact@v4
+        with:
+          path: all
+      - name: Flatten
+        run: |
+          mkdir -p out
+          find all -type f \( -name '*.exe' -o -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' \) -exec cp {} out/ \;
+          ls -la out
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=cloud-v0.1.0
+          NOTES="Fitma Tick (Cloud) — desktop tracker for companies. Unsigned test build.
+          Windows: download the Setup .exe, run it, then on the blue warning click **More info -> Run anyway**.
+          macOS: download the .dmg, open it, drag Fitma Tick to Applications, then **right-click the app -> Open** once, and allow **Screen Recording** in System Settings > Privacy & Security.
+          Sign in with the email + password you used on the Fitma Tick website."
+          gh release create "$TAG" --repo "${{ github.repository }}" --title "Fitma Tick (Cloud) $TAG" --notes "$NOTES" out/* \
+            || gh release upload "$TAG" --repo "${{ github.repository }}" out/* --clobber

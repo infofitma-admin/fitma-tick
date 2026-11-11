@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fitma Tick</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Corben:wght@700&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- ========== SIGN IN ========== -->
+  <section id="view-login" class="view">
+    <div class="login-wrap">
+      <div class="login-hero">
+        <img id="login-vora" class="login-vora" src="../assets/icon.png" alt="Vora">
+      </div>
+      <div class="brand"><div class="brand-name">Fitma <span>Tick</span></div></div>
+      <p class="tagline">Sign in with your Fitma email and password — the same ones you use for the Workspace.</p>
+      <form id="login-form" autocomplete="off">
+        <label>Email
+          <input id="email" type="email" placeholder="you@gmail.com" required>
+        </label>
+        <label>Password
+          <div class="pw-wrap">
+            <input id="password" type="password" placeholder="Your password" required>
+            <button type="button" id="pw-eye" class="pw-eye" aria-label="Show password">show</button>
+          </div>
+        </label>
+        <div id="login-err" class="err" hidden></div>
+        <button id="login-btn" type="submit" class="btn primary big">Sign in</button>
+      </form>
+      <p class="hint">First time? Use the starter password from your admin. You can change it in the Workspace.</p>
+    </div>
+  </section>
+
+  <!-- ========== TRACKER ========== -->
+  <section id="view-track" class="view" hidden>
+    <header class="top">
+      <div class="brand sm">
+        <img class="vora" src="../assets/vora-empty.png" alt="">
+        <div class="brand-name">Fitma <span>Tick</span></div>
+      </div>
+      <div class="who">
+        <span id="who-name" class="who-name"></span>
+        <button id="logout" class="link">Sign out</button>
+      </div>
+    </header>
+
+    <main class="track-main">
+      <!-- hero timer -->
+      <div class="card timer-card">
+        <div class="vora-stage">
+          <img id="vora-state" class="vora-state" src="../assets/vora-empty.png" alt="">
+          <span id="status-dot" class="status-dot off"></span>
+        </div>
+        <div id="status-pill" class="pill off">Ready to track</div>
+        <div id="clock" class="clock">0:00:00</div>
+        <div class="sub">worked today</div>
+
+        <label class="proj-label">Project
+          <select id="project"></select>
+        </label>
+
+        <div id="actions" class="actions">
+          <button id="toggle" class="btn primary big">Start tracking</button>
+        </div>
+        <div id="pausehint" class="pausehint" hidden></div>
+        <div id="track-err" class="err" hidden></div>
+      </div>
+
+      <!-- live stats -->
+      <div class="card stats-card">
+        <div class="stat">
+          <div class="stat-head"><span>Activity level</span><b id="activity">—</b></div>
+          <div class="meter"><span id="activity-bar" class="meter-fill" style="width:0%"></span></div>
+          <p class="stat-note">How much you were using the keyboard and mouse.</p>
+        </div>
+        <div class="stat-split three">
+          <div class="mini">
+            <div class="mini-val" id="shots">0</div>
+            <div class="mini-lbl">Screenshots today</div>
+          </div>
+          <div class="mini">
+            <div class="mini-val" id="sites">0</div>
+            <div class="mini-lbl">Apps / sites</div>
+          </div>
+          <div class="mini">
+            <div class="mini-val" id="cap-state">Off</div>
+            <div class="mini-lbl">Capture</div>
+          </div>
+        </div>
+        <p class="note" id="privacy-note"><b>Remember!</b> While you’re working, Fitma Tick records your work time, takes occasional screenshots, and notes which apps and websites you use. Therefore, try to work honestly.</p>
+      </div>
+    </main>
+  </section>
+
+<script src="renderer.js"></script>
+</body>
+</html>
