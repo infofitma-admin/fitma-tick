@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#273545">
+<title>My Fitma Workspace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Corben:wght@400;700&family=Montserrat:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#eef0f2; --surface:#ffffff; --surface-2:#f5f6f7; --border:#d8dddf;
+  --fg:#273545; --muted:#5d7488; --faint:#92aabe;
+  --primary:#273545; --accent:#3d5c71; --accent-soft:#e2e8ee;
+  --good:#2f8f5b; --good-soft:#dcefe3; --warn:#b07a28; --warn-soft:#f3e8d4; --crit:#c0453f; --crit-soft:#f4e0df;
+  --radius:14px; --shadow:0 1px 2px rgba(39,53,69,.06),0 8px 24px rgba(39,53,69,.07);
+  --ff:"Montserrat",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --fh:"Corben","Montserrat",Georgia,serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--ff);font-size:14px;line-height:1.5}
+.wrap{max-width:720px;margin:0 auto;padding-block:22px;padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+h1{font-family:var(--fh);font-weight:700;margin:0;font-size:22px}
+.sub{color:var(--muted);font-size:13px;margin:2px 0 18px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-bottom:14px}
+.stat{padding:14px 16px}
+.stat .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.stat .v{font-family:var(--fh);font-size:26px;font-weight:700;margin-top:3px}
+.stat .s{font-size:12px;color:var(--faint);margin-top:2px}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600}
+.pill.good{background:var(--good-soft);color:var(--good)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.crit{background:var(--crit-soft);color:var(--crit)}
+.pill.muted{background:var(--surface-2);color:var(--muted)}
+.sec-head{padding:16px 16px 10px}
+.sec-head h3{font-family:var(--ff);font-weight:600;margin:0}
+.quote{background:linear-gradient(135deg,var(--accent-soft),var(--surface));padding:18px;border-radius:var(--radius);margin-bottom:14px;font-family:var(--fh);font-size:16px;line-height:1.4}
+.gate{max-width:360px;margin:50px auto}
+.gate input{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:10px;font-size:15px;margin:8px 0;font-family:var(--ff)}
+.btn{background:var(--primary);color:#fff;border:0;border-radius:10px;padding:11px 16px;font-weight:600;cursor:pointer;font-family:var(--ff);font-size:14px;width:100%}
+.muted{color:var(--muted)}.err{color:var(--crit);font-size:13px;margin-top:8px}
+.foot{color:var(--faint);font-size:12px;margin-top:16px;text-align:center}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="gate card" style="padding:26px">
+    <div style="font-family:var(--fh);font-size:20px;font-weight:700">My Fitma Workspace</div>
+    <p class="muted" style="font-size:13px;margin:6px 0 2px">Sign in with your Fitma email and password.</p>
+    <input id="email" type="email" placeholder="Your email" autocomplete="username">
+    <input id="pw" type="password" placeholder="Password" autocomplete="current-password">
+    <button class="btn" id="go">Sign in</button>
+    <div class="err" id="gerr" hidden></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
+<script>
+const sb=supabase.createClient("https://adyqhpqugdlksqzpscwm.supabase.co","sb_publishable_l3HBtg1KUO6nBZkwxXqQvw_9uPyXSRz");
+const app=document.getElementById("app");
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtDate=d=>new Date(d+"T00:00:00").toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
+const QUOTES=["Small steps every day add up to big results.","Consistency beats intensity.","Do it well, not just fast.","Your effort today builds tomorrow.","Focus on progress, not perfection.","Show up, give your best, keep learning."];
+
+function gate(){
+  const go=()=>{const email=document.getElementById("email").value.trim();const pw=document.getElementById("pw").value;if(email&&pw){try{localStorage.setItem("fitma_me",JSON.stringify({email,pw}))}catch(e){}load(email,pw);}};
+  document.getElementById("go").onclick=go;
+  document.getElementById("pw").addEventListener("keydown",e=>{if(e.key==="Enter")go();});
+  let s=null;try{s=JSON.parse(localStorage.getItem("fitma_me")||"null")}catch(e){}
+  if(s&&s.email)load(s.email,s.pw);
+}
+async function load(email,pw){
+  app.innerHTML=`<div class="sub">Loading your workspace…</div>`;
+  const {data,error}=await sb.rpc("fitma_my_report",{p_email:email,p_pin:pw});
+  if(error||!data||data.error){
+    try{localStorage.removeItem("fitma_me")}catch(e){}
+    app.innerHTML=`<div class="gate card" style="padding:26px"><div style="font-family:var(--fh);font-size:20px;font-weight:700">My Fitma Workspace</div>
+      <p class="err" style="margin:8px 0">${data&&data.error==='not_found'?'We could not find that email.':data&&data.error?'Wrong email or password.':'Could not load. '+esc(error?error.message:'')}</p>
+      <input id="email" type="email" placeholder="Your email"><input id="pw" type="password" placeholder="Password"><button class="btn" id="go">Sign in</button>
+      <p class="muted" style="font-size:12px;margin-top:10px">Forgot your password? Ask the admin.</p></div>`;
+    gate();return;
+  }
+  render(data,email);
+}
+function render(d,email){
+  const me=d.member||{}; const rows=(d.attendance||[]).slice().sort((a,b)=>a.work_date<b.work_date?1:-1);
+  const working=rows.filter(r=>r.working_day);
+  const present=rows.filter(r=>r.start_time);
+  const onTime=present.filter(r=>!r.is_late).length;
+  const late=present.filter(r=>r.is_late).length;
+  const punct=present.length?Math.round(onTime/present.length*100):0;
+  const q=QUOTES[new Date().getDate()%QUOTES.length];
+  const roleName={intern:'Intern',senior:'Senior',founder:'Founder'}[me.role]||'';
+  app.innerHTML=`
+   <h1>Hi, ${esc((me.name||'').split(' ')[0]||'there')} 👋</h1>
+   <div class="sub">${roleName} · your attendance this month · <a href="#" id="logout">sign out</a></div>
+   <div class="quote">${esc(q)}</div>
+   <div class="grid">
+     <div class="card stat"><div class="k">Days present</div><div class="v">${present.length}</div><div class="s">this month</div></div>
+     <div class="card stat"><div class="k">On time</div><div class="v">${onTime}</div><div class="s">of ${present.length} days</div></div>
+     <div class="card stat"><div class="k">Punctuality</div><div class="v">${punct}%</div><div class="s">${late?late+' late day(s)':'perfect!'}</div></div>
+   </div>
+   <div class="card">
+     <div class="sec-head"><h3>Daily attendance</h3></div>
+     <div style="overflow-x:auto"><table><thead><tr><th>Day</th><th>Start</th><th>Status</th><th>Activity</th></tr></thead><tbody>
+     ${present.length?present.map(r=>`<tr>
+        <td>${fmtDate(r.work_date)}</td>
+        <td>${r.start_time?esc(r.start_time):'<span class="muted">—</span>'}</td>
+        <td>${r.is_late?'<span class="pill crit">Late</span>':r.is_left_early?'<span class="pill warn">Left early</span>':'<span class="pill good">On time</span>'}</td>
+        <td>${r.activity_pct==null?'<span class="muted">—</span>':r.activity_pct+'%'}</td>
+      </tr>`).join(""):`<tr><td colspan="4" class="muted" style="padding:18px;text-align:center">No attendance recorded yet this month.</td></tr>`}
+     </tbody></table></div>
+   </div>
+   <div class="foot">Fitma Workspace · your attendance updates automatically each day</div>`;
+  document.getElementById("logout").onclick=e=>{e.preventDefault();try{localStorage.removeItem("fitma_me")}catch(x){}location.reload();};
+}
+gate();
+</script>
+</body>
+</html>

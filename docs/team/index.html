@@ -157,7 +157,7 @@ function render(d){
         <div><div style="font-weight:600">${esc(p.m.name)}</div><div class="muted" style="font-size:11px">${roleName[p.m.role]||esc(p.m.role||'')}</div></div></div></td>
       <td class="n" style="font-weight:700">${fmtH(p.totalMin)}</td>
       <td class="n"><span class="pill ${targetPill}">${fmtH(avgDay)}${target?' / '+fmtH(target):''}</span></td>
-      <td class="n">${p.avgAct==null?'<span class="muted">manual</span>':`<span class="pill ${actPill}">${p.avgAct}%</span>`}</td>
+      <td class="n">${(p.m.role==='founder'||p.avgAct==null)?'<span class="muted">manual</span>':`<span class="pill ${actPill}">${p.avgAct}%</span>`}</td>
       <td class="n">${p.daysWorked}</td>
       <td class="n">${p.late?`<span class="pill crit">${p.late}</span>`:'<span class="muted">0</span>'}</td>
       <td>${p.last&&p.last.start_time?esc(p.last.start_time)+(p.last.end_time?'–'+esc(p.last.end_time):'')+' <span class="muted" style="font-size:11px">'+fmtDate(p.last.work_date)+'</span>':'<span class="muted">—</span>'}</td>`;
