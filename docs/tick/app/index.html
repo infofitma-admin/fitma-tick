@@ -303,7 +303,9 @@ const ICON={
   operator:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg>',
   reports:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v16h16"/><path d="M8 16l3-4 3 2 4-6"/></svg>',
   settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
-  finance:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 10h18"/><path d="M7 15h4"/></svg>'};
+  finance:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 10h18"/><path d="M7 15h4"/></svg>',
+  timeoff:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/><path d="M8.5 14.5l2.5 2.5 4-4.5"/></svg>',
+  shifts:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2.5h6"/></svg>'};
 function isMgr(){return ["owner","admin"].includes(state.membership.role);}
 const PLAN_RANK={trial:3,internal:3,starter:1,pro:2,business:3,enterprise:3};
 function planAtLeast(name){return (PLAN_RANK[(state.company&&state.company.plan_code)]||0)>=(PLAN_RANK[name]||0);}
@@ -312,6 +314,7 @@ function navItems(){
   const n=[["overview","Overview"],["timesheet","My timesheet"]];
   if(isMgr()) n.push(["team","Team"]);
   n.push(["projects","Projects & tasks"],["shots","Screenshots"]);
+  if(planAtLeast("pro")) n.push(["timeoff","Time off"],["shifts","Shifts"]);
   if(isMgr()) n.push(["reports","Reports"]);
   if(isMgr()&&planAtLeast("pro")) n.push(["finance","Finances"]);
   if(isMgr()) n.push(["settings","Settings"]);
@@ -351,7 +354,7 @@ function renderShell(){
 }
 function closeRail(){const r=app.querySelector("#rail"),s=app.querySelector("#scrim");if(r)r.classList.remove("open");if(s)s.hidden=true;}
 function setActive(v){app.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
-  const titles={overview:"Overview",timesheet:"My timesheet",team:"Team",projects:"Projects & tasks",shots:"Screenshots",reports:"Reports",finance:"Finances",settings:"Settings",billing:"Billing & plan",operator:"Operator — all companies"};
+  const titles={overview:"Overview",timesheet:"My timesheet",team:"Team",projects:"Projects & tasks",shots:"Screenshots",reports:"Reports",finance:"Finances",timeoff:"Time off",shifts:"Shifts",settings:"Settings",billing:"Billing & plan",operator:"Operator — all companies"};
   app.querySelector("#viewtitle").textContent=titles[v]||v;}
 function content(){return app.querySelector("#content");}
 function renderLoader(t){app.innerHTML=`<div class="loader"><div class="spin"></div><div>${esc(t||"Loading…")}</div></div>`;}
@@ -367,6 +370,8 @@ async function loadView(v){
     else if(v==="shots") await viewShots();
     else if(v==="reports") await viewReports();
     else if(v==="finance") await viewFinances();
+    else if(v==="timeoff") await viewTimeoff();
+    else if(v==="shifts") await viewShifts();
     else if(v==="settings") await viewSettings();
     else if(v==="billing") await viewBilling();
     else if(v==="operator") await viewOperator();
@@ -580,13 +585,15 @@ function memberModal(m,nm){
       <div class="field" style="flex:1;min-width:120px" id="m_rate_wrap"><label>Hourly rate</label><input id="m_rate" type="number" step="0.01" min="0" value="${m.hourly_rate!=null?m.hourly_rate:''}" placeholder="0.00"></div>
       <div class="field" style="flex:1;min-width:120px" id="m_fixed_wrap"><label>Monthly pay</label><input id="m_fixed" type="number" step="0.01" min="0" value="${m.monthly_pay!=null?m.monthly_pay:''}" placeholder="0.00"></div>
     </div>
+    <div class="field"><label>Annual leave allowance (days)</label><input id="m_leave" type="number" step="0.5" min="0" value="${m.leave_allowance!=null?m.leave_allowance:''}" placeholder="14"></div>
     <div class="row" style="justify-content:flex-end"><button class="btn" onclick="window._closeModal()">Cancel</button><button class="btn pri" id="m_save">Save</button></div>`);
   const syncPay=()=>{const t=document.getElementById("m_paytype").value;document.getElementById("m_rate_wrap").style.display=t==='fixed'?'none':'';document.getElementById("m_fixed_wrap").style.display=t==='fixed'?'':'none';};
   document.getElementById("m_paytype").onchange=syncPay;syncPay();
   document.getElementById("m_save").onclick=async()=>{
     const pt=document.getElementById("m_paytype").value;
     const upd={title:document.getElementById("m_title").value.trim()||null,team:document.getElementById("m_team").value.trim()||null,
-      pay_type:pt,hourly_rate:parseFloat(document.getElementById("m_rate").value)||null,monthly_pay:parseFloat(document.getElementById("m_fixed").value)||null};
+      pay_type:pt,hourly_rate:parseFloat(document.getElementById("m_rate").value)||null,monthly_pay:parseFloat(document.getElementById("m_fixed").value)||null,
+      leave_allowance:parseFloat(document.getElementById("m_leave").value)||null};
     if(!self&&m.role!=='owner')upd.role=document.getElementById("m_role").value;
     const {error}=await sb.from("memberships").update(upd).eq("id",m.id);
     if(error){alert2(error.message);return;}_closeModal();loadView("team");
@@ -1243,6 +1250,148 @@ async function openPayrollRun(id){
   on("pr_paid",async()=>{await sb.from("payroll_runs").update({status:"paid"}).eq("id",run.id);_closeModal();loadView("finance");});
   on("pr_del",async()=>{if(!window.__confirmDelPr){window.__confirmDelPr=true;document.getElementById("pr_del").textContent="Click again to delete";setTimeout(()=>window.__confirmDelPr=false,2500);return;}await sb.from("payroll_runs").delete().eq("id",run.id);window.__confirmDelPr=false;_closeModal();loadView("finance");});
   on("pr_csv",()=>downloadCsv(`payroll-${run.period_start}.csv`,[["Member","Type","Hours","Rate","Gross"]].concat(rows.map(it=>[nameOf(it.user_id),it.pay_type,it.pay_type==='fixed'?'':Number(it.hours),it.pay_type==='fixed'?'':Number(it.rate),Number(it.gross).toFixed(2)])).concat([[],["Total","","","",Number(run.total).toFixed(2)]])));
+}
+
+/* =================== TIME OFF =================== */
+const DEFAULT_LEAVE=14;
+const leaveTypePill=t=>({vacation:'accent',personal:'muted',sick:'warn',unpaid:'muted',other:'muted'})[t]||'muted';
+const PAID_LEAVE=['vacation','personal'];
+function daysInclusive(a,b){const d1=new Date(a),d2=new Date(b);return Math.max(1,Math.round((d2-d1)/864e5)+1);}
+async function viewTimeoff(){
+  const c=content(); const mgr=isMgr(); const me=state.user.id; const yr=new Date().getFullYear();
+  app.querySelector("#topright").innerHTML=`<button class="btn pri sm" id="toreq">+ Request time off</button>`;
+  app.querySelector("#toreq").onclick=requestTimeoff;
+  let q=sb.from("time_off_requests").select("*").eq("company_id",cid()).order("start_date",{ascending:false});
+  if(!mgr) q=q.eq("user_id",me);
+  const [{data:reqs},{data:mems}]=await Promise.all([q, sb.from("memberships").select("user_id,leave_allowance").eq("company_id",cid()).eq("status","active")]);
+  const pm=await profilesMap((reqs||[]).map(r=>r.user_id).concat((mems||[]).map(m=>m.user_id)));
+  const nameOf=u=>pm[u]||(u===me?(state.user.user_metadata?.full_name||"You"):"Member");
+  const allowOf=u=>{const m=(mems||[]).find(x=>x.user_id===u);return (m&&m.leave_allowance!=null)?Number(m.leave_allowance):DEFAULT_LEAVE;};
+  const takenOf=u=>(reqs||[]).filter(r=>r.user_id===u&&r.status==='approved'&&PAID_LEAVE.includes(r.type)&&new Date(r.start_date).getFullYear()===yr).reduce((s,r)=>s+Number(r.days||0),0);
+  const myAllow=allowOf(me), myTaken=takenOf(me), myLeft=Math.max(0,myAllow-myTaken);
+  const pending=(reqs||[]).filter(r=>r.status==='pending');
+  c.innerHTML=`
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+     <div class="card stat"><div class="k">Your allowance</div><div class="v tnum">${myAllow}</div><div class="sub">paid days · ${yr}</div></div>
+     <div class="card stat"><div class="k">Taken</div><div class="v tnum">${myTaken}</div><div class="sub">approved paid leave</div></div>
+     <div class="card stat"><div class="k">Remaining</div><div class="v tnum">${myLeft}</div><div class="sub">days left</div></div>
+   </div>
+   ${mgr&&pending.length?`<div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Pending approval</h3><span class="pill warn">${pending.length}</span></div>
+     <div style="overflow-x:auto"><table><thead><tr><th>Member</th><th>Type</th><th>Dates</th><th class="tnum" style="text-align:right">Days</th><th>Reason</th><th></th></tr></thead><tbody>
+     ${pending.map(r=>`<tr><td>${esc(nameOf(r.user_id))}</td><td><span class="pill ${leaveTypePill(r.type)}">${esc(r.type)}</span></td>
+       <td style="white-space:nowrap">${fmtDate(r.start_date)}${r.end_date!==r.start_date?' – '+fmtDate(r.end_date):''}</td><td class="tnum" style="text-align:right">${Number(r.days)}</td>
+       <td class="muted" style="font-size:13px">${r.reason?esc(r.reason):'—'}</td>
+       <td style="text-align:right;white-space:nowrap"><button class="btn acc sm" data-appr="${r.id}">Approve</button> <button class="btn ghost sm" data-rej="${r.id}">Reject</button></td></tr>`).join("")}
+     </tbody></table></div></div>`:''}
+   <div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>${mgr?'All requests':'My requests'}</h3><span class="pill muted">${(reqs||[]).length}</span></div>
+   ${(reqs||[]).length?`<div style="overflow-x:auto"><table><thead><tr>${mgr?'<th>Member</th>':''}<th>Type</th><th>Dates</th><th class="tnum" style="text-align:right">Days</th><th>Status</th><th></th></tr></thead><tbody>
+     ${(reqs||[]).map(r=>{const own=r.user_id===me;return `<tr>${mgr?`<td>${esc(nameOf(r.user_id))}</td>`:''}<td><span class="pill ${leaveTypePill(r.type)}">${esc(r.type)}</span></td>
+       <td style="white-space:nowrap">${fmtDate(r.start_date)}${r.end_date!==r.start_date?' – '+fmtDate(r.end_date):''}</td><td class="tnum" style="text-align:right">${Number(r.days)}</td>
+       <td><span class="pill ${r.status==='approved'?'good':r.status==='rejected'?'crit':'warn'}">${esc(r.status)}</span></td>
+       <td style="text-align:right">${(own&&r.status==='pending')?`<button class="btn ghost sm" data-wd="${r.id}">Withdraw</button>`:(mgr&&r.status!=='pending')?`<button class="btn ghost sm" data-del="${r.id}">Remove</button>`:''}</td></tr>`;}).join("")}
+     </tbody></table></div>`:`<div class="empty">${ICON.timeoff}<div>No time-off requests yet.</div></div>`}</div>
+   ${mgr?`<div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Team balances · ${yr}</h3></div>
+     <div style="overflow-x:auto"><table><thead><tr><th>Member</th><th class="tnum" style="text-align:right">Allowance</th><th class="tnum" style="text-align:right">Taken</th><th class="tnum" style="text-align:right">Remaining</th></tr></thead><tbody>
+     ${(mems||[]).map(m=>{const a=allowOf(m.user_id),t=takenOf(m.user_id);return `<tr><td>${esc(nameOf(m.user_id))}</td><td class="tnum" style="text-align:right">${a}</td><td class="tnum" style="text-align:right">${t}</td><td class="tnum" style="text-align:right;font-weight:600">${Math.max(0,a-t)}</td></tr>`;}).join("")}
+     </tbody></table></div><p class="hint" style="padding:10px 18px">Set each member's allowance in Team → Edit. Sick and unpaid leave don't count against the paid allowance.</p></div>`:''}`;
+  c.querySelectorAll("[data-appr]").forEach(b=>b.onclick=async()=>{b.disabled=true;await sb.from("time_off_requests").update({status:"approved",decided_by:me,decided_at:new Date().toISOString()}).eq("id",b.dataset.appr);loadView("timeoff");});
+  c.querySelectorAll("[data-rej]").forEach(b=>b.onclick=async()=>{b.disabled=true;await sb.from("time_off_requests").update({status:"rejected",decided_by:me,decided_at:new Date().toISOString()}).eq("id",b.dataset.rej);loadView("timeoff");});
+  c.querySelectorAll("[data-wd]").forEach(b=>b.onclick=async()=>{b.disabled=true;await sb.from("time_off_requests").delete().eq("id",b.dataset.wd);loadView("timeoff");});
+  c.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{b.disabled=true;await sb.from("time_off_requests").delete().eq("id",b.dataset.del);loadView("timeoff");});
+}
+function requestTimeoff(){
+  showModal(`<h3 style="margin-bottom:14px">Request time off</h3>
+    <div id="tomsg"></div>
+    <div class="field"><label>Type</label><select id="to_type"><option value="vacation">Vacation (paid)</option><option value="personal">Personal (paid)</option><option value="sick">Sick</option><option value="unpaid">Unpaid</option><option value="other">Other</option></select></div>
+    <div class="row" style="gap:10px;flex-wrap:wrap">
+      <div class="field" style="flex:1;min-width:130px"><label>From</label><input id="to_start" type="date" value="${todayISODate()}"></div>
+      <div class="field" style="flex:1;min-width:130px"><label>To</label><input id="to_end" type="date" value="${todayISODate()}"></div>
+      <div class="field" style="width:90px"><label>Days</label><input id="to_days" type="number" step="0.5" min="0.5" value="1"></div>
+    </div>
+    <div class="field"><label>Reason (optional)</label><input id="to_reason" placeholder="e.g. family trip"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" onclick="window._closeModal()">Cancel</button><button class="btn pri" id="to_save">Submit request</button></div>`);
+  const recalc=()=>{const s=document.getElementById("to_start").value,e=document.getElementById("to_end").value;if(s&&e&&e>=s)document.getElementById("to_days").value=daysInclusive(s,e);};
+  document.getElementById("to_start").onchange=recalc;document.getElementById("to_end").onchange=recalc;
+  document.getElementById("to_save").onclick=async()=>{
+    const s=document.getElementById("to_start").value,e=document.getElementById("to_end").value;
+    if(!s||!e||e<s){document.getElementById("tomsg").innerHTML=`<div class="msg err">Pick a valid date range.</div>`;return;}
+    const {error}=await sb.from("time_off_requests").insert({company_id:cid(),user_id:state.user.id,type:document.getElementById("to_type").value,start_date:s,end_date:e,days:parseFloat(document.getElementById("to_days").value)||daysInclusive(s,e),reason:document.getElementById("to_reason").value.trim()||null});
+    if(error){document.getElementById("tomsg").innerHTML=`<div class="msg err">${esc(error.message)}</div>`;return;}
+    _closeModal();loadView("timeoff");
+  };
+}
+
+/* =================== SHIFTS =================== */
+let shiftsState={weekStart:null};
+function weekMonday(d){const x=new Date(d);const day=(x.getDay()+6)%7;x.setDate(x.getDate()-day);x.setHours(0,0,0,0);return x;}
+function shiftHours(st,en){const p=t=>{const[h,m]=String(t).split(":");return (+h)+(+m)/60;};let d=p(en)-p(st);if(d<0)d+=24;return d;}
+const hhmmShort=t=>String(t).slice(0,5);
+async function viewShifts(){
+  const c=content(); const mgr=isMgr(); const me=state.user.id;
+  if(!shiftsState.weekStart) shiftsState.weekStart=weekMonday(new Date());
+  const ws=new Date(shiftsState.weekStart); const we=new Date(ws);we.setDate(we.getDate()+6);we.setHours(23,59,59,999);
+  if(mgr) app.querySelector("#topright").innerHTML=`<button class="btn pri sm" id="shadd">+ Add shift</button>`;
+  const [{data:shifts},{data:ents},{data:mems}]=await Promise.all([
+    (mgr?sb.from("shifts").select("*").eq("company_id",cid()):sb.from("shifts").select("*").eq("company_id",cid()).eq("user_id",me)).gte("shift_date",ws.toISOString().slice(0,10)).lte("shift_date",we.toISOString().slice(0,10)).order("shift_date"),
+    sb.from("time_entries").select("user_id,started_at,duration_sec").eq("company_id",cid()).gte("started_at",ws.toISOString()).lte("started_at",we.toISOString()),
+    sb.from("memberships").select("user_id").eq("company_id",cid()).eq("status","active")
+  ]);
+  const pm=await profilesMap((mems||[]).map(m=>m.user_id).concat((shifts||[]).map(s=>s.user_id)));
+  const nameOf=u=>pm[u]||(u===me?(state.user.user_metadata?.full_name||"You"):"Member");
+  // tracked seconds per user+date
+  const trk={};(ents||[]).forEach(e=>{const k=e.user_id+"|"+dkey(new Date(e.started_at));trk[k]=(trk[k]||0)+(e.duration_sec||0);});
+  const list=(shifts||[]);
+  const plannedTotal=list.reduce((s,sh)=>s+shiftHours(sh.start_time,sh.end_time),0);
+  const trackedTotal=(ents||[]).reduce((s,e)=>s+(e.duration_sec||0),0);
+  if(mgr){const a=app.querySelector("#shadd");if(a)a.onclick=()=>shiftModal(null,mems||[],pm);}
+  const wkLabel=`${ws.toLocaleDateString(undefined,{month:'short',day:'numeric'})} – ${we.toLocaleDateString(undefined,{month:'short',day:'numeric'})}`;
+  c.innerHTML=`
+   <div class="card" style="padding:12px 16px"><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+     <button class="btn ghost sm" id="sh_prev">‹ Prev</button>
+     <div style="font-weight:600;font-family:var(--fh)">${wkLabel}</div>
+     <button class="btn ghost sm" id="sh_next">Next ›</button>
+     <button class="btn ghost sm" id="sh_today" style="margin-left:auto">This week</button>
+   </div></div>
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+     <div class="card stat"><div class="k">Planned</div><div class="v tnum">${plannedTotal.toFixed(1)}h</div><div class="sub">scheduled this week</div></div>
+     <div class="card stat"><div class="k">Tracked</div><div class="v tnum">${hrs(trackedTotal).toFixed(1)}h</div><div class="sub">actually worked</div></div>
+     <div class="card stat"><div class="k">Shifts</div><div class="v tnum">${list.length}</div><div class="sub">${mgr?'team':'yours'}</div></div>
+   </div>
+   <div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>${mgr?'Team shifts':'My shifts'}</h3><span class="muted" style="font-size:13px">${wkLabel}</span></div>
+   ${list.length?`<div style="overflow-x:auto"><table><thead><tr><th>Day</th>${mgr?'<th>Member</th>':''}<th>Shift</th><th class="tnum" style="text-align:right">Planned</th><th class="tnum" style="text-align:right">Tracked</th>${mgr?'<th></th>':''}</tr></thead><tbody>
+     ${list.map(s=>{const ph=shiftHours(s.start_time,s.end_time);const tsec=trk[s.user_id+"|"+s.shift_date]||0;const th=hrs(tsec);
+       return `<tr><td style="white-space:nowrap">${new Date(s.shift_date+'T00:00:00').toLocaleDateString(undefined,{weekday:'short',day:'numeric'})}</td>${mgr?`<td>${esc(nameOf(s.user_id))}</td>`:''}
+       <td class="tnum">${hhmmShort(s.start_time)}–${hhmmShort(s.end_time)}${s.note?` <span class="muted" style="font-size:12px">· ${esc(s.note)}</span>`:''}</td>
+       <td class="tnum" style="text-align:right">${ph.toFixed(1)}h</td><td class="tnum" style="text-align:right;${th>=ph*0.9?'color:var(--good)':th>0?'':'color:var(--faint)'}">${th>0?th.toFixed(1)+'h':'—'}</td>
+       ${mgr?`<td style="text-align:right;white-space:nowrap"><button class="btn ghost sm" data-she="${s.id}">Edit</button> <button class="btn ghost sm" data-shd="${s.id}">✕</button></td>`:''}</tr>`;}).join("")}
+     </tbody></table></div>`:`<div class="empty">${ICON.shifts}<div>No shifts scheduled this week.${mgr?' Add one above.':''}</div></div>`}</div>`;
+  c.querySelector("#sh_prev").onclick=()=>{const d=new Date(shiftsState.weekStart);d.setDate(d.getDate()-7);shiftsState.weekStart=d;loadView("shifts");};
+  c.querySelector("#sh_next").onclick=()=>{const d=new Date(shiftsState.weekStart);d.setDate(d.getDate()+7);shiftsState.weekStart=d;loadView("shifts");};
+  c.querySelector("#sh_today").onclick=()=>{shiftsState.weekStart=weekMonday(new Date());loadView("shifts");};
+  c.querySelectorAll("[data-she]").forEach(b=>b.onclick=()=>{const s=list.find(x=>x.id===b.dataset.she);shiftModal(s,mems||[],pm);});
+  c.querySelectorAll("[data-shd]").forEach(b=>b.onclick=async()=>{b.disabled=true;await sb.from("shifts").delete().eq("id",b.dataset.shd);loadView("shifts");});
+}
+function shiftModal(sh,mems,pm){
+  const me=state.user.id;
+  const nameOf=u=>pm[u]||(u===me?(state.user.user_metadata?.full_name||"You"):"Member");
+  const memOpts=(mems||[]).map(m=>`<option value="${m.user_id}" ${sh&&sh.user_id===m.user_id?'selected':''}>${esc(nameOf(m.user_id))}</option>`).join("");
+  showModal(`<h3 style="margin-bottom:14px">${sh?'Edit shift':'Add shift'}</h3>
+    <div id="shmsg"></div>
+    <div class="field"><label>Member</label><select id="sh_user" ${sh?'disabled':''}>${memOpts}</select></div>
+    <div class="field"><label>Date</label><input id="sh_date" type="date" value="${sh?sh.shift_date:todayISODate()}"></div>
+    <div class="row" style="gap:10px"><div class="field" style="flex:1"><label>Start</label><input id="sh_start" type="time" value="${sh?hhmmShort(sh.start_time):'09:00'}"></div>
+      <div class="field" style="flex:1"><label>End</label><input id="sh_end" type="time" value="${sh?hhmmShort(sh.end_time):'17:00'}"></div></div>
+    <div class="field"><label>Note (optional)</label><input id="sh_note" value="${sh?esc(sh.note||''):''}" placeholder="e.g. Morning shift"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" onclick="window._closeModal()">Cancel</button><button class="btn pri" id="sh_save">Save</button></div>`);
+  document.getElementById("sh_save").onclick=async()=>{
+    const rec={company_id:cid(),user_id:document.getElementById("sh_user").value,shift_date:document.getElementById("sh_date").value,start_time:document.getElementById("sh_start").value,end_time:document.getElementById("sh_end").value,note:document.getElementById("sh_note").value.trim()||null};
+    if(!rec.user_id||!rec.shift_date){document.getElementById("shmsg").innerHTML=`<div class="msg err">Pick a member and date.</div>`;return;}
+    let error;
+    if(sh){({error}=await sb.from("shifts").update({shift_date:rec.shift_date,start_time:rec.start_time,end_time:rec.end_time,note:rec.note}).eq("id",sh.id));}
+    else{rec.created_by=me;({error}=await sb.from("shifts").insert(rec));}
+    if(error){document.getElementById("shmsg").innerHTML=`<div class="msg err">${esc(error.message)}</div>`;return;}
+    _closeModal();loadView("shifts");
+  };
 }
 
 /* =================== SETTINGS =================== */
