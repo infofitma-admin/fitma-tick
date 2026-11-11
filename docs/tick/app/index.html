@@ -619,16 +619,51 @@ function taskModal(pid){
 }
 
 /* =================== SCREENSHOTS =================== */
+let shotsState={date:null,user:"all"};
 async function viewShots(){
-  const {data}=await sb.from("screenshots").select("*").eq("company_id",cid()).order("captured_at",{ascending:false}).limit(60);
   const c=content();
-  if(!data||!data.length){c.innerHTML=`<div class="card"><div class="empty">${ICON.shots}
-    <div><b>No screenshots yet.</b></div>
-    <p class="hint" style="max-width:420px;margin:8px auto 0">Screenshots are captured automatically by the Fitma Tick desktop app while the timer runs. Install it on a team member's computer to start seeing activity here.</p></div></div>`;return;}
-  c.innerHTML=`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">
-    ${data.map(s=>`<div class="card" style="overflow:hidden"><div style="aspect-ratio:16/10;background:var(--surface-2)"></div>
-      <div style="padding:9px 11px"><div style="font-size:12px;font-weight:600">${new Date(s.captured_at).toLocaleString()}</div>
-      <div class="muted" style="font-size:12px">Activity ${s.activity_pct??'—'}%</div></div></div>`).join("")}</div>`;
+  if(!shotsState.date) shotsState.date=dkey(new Date());
+  const day=shotsState.date;
+  const from=new Date(day+"T00:00:00"), to=new Date(from.getTime()+864e5);
+  const {data:mems}=await sb.from("memberships").select("user_id,role").eq("company_id",cid()).eq("status","active");
+  const pm=await profilesMap((mems||[]).map(m=>m.user_id));
+  const nameOf=u=>pm[u]||(u===state.user.id?"You":"Member");
+  let q=sb.from("screenshots").select("id,user_id,captured_at,storage_path,thumb_path,activity_pct,blurred").eq("company_id",cid()).gte("captured_at",from.toISOString()).lt("captured_at",to.toISOString()).order("captured_at",{ascending:false}).limit(240);
+  if(shotsState.user!=="all") q=q.eq("user_id",shotsState.user);
+  const {data:rows}=await q;
+  const urlMap={}; const paths=(rows||[]).map(r=>r.thumb_path||r.storage_path).filter(Boolean);
+  if(paths.length){ try{ const {data:signed}=await sb.storage.from("screenshots").createSignedUrls(paths,3600); (signed||[]).forEach(s=>{if(s&&s.signedUrl)urlMap[s.path]=s.signedUrl;}); }catch(e){} }
+  const prettyDay=from.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+  const isToday=day===dkey(new Date());
+  c.innerHTML=`
+   <div class="card" style="padding:12px 16px">
+     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+       <button class="btn sm" id="pday">‹</button>
+       <input type="date" id="sday" value="${day}" max="${dkey(new Date())}" style="padding:7px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);color:var(--fg)">
+       <button class="btn sm" id="nday" ${isToday?'disabled':''}>›</button>
+       <span class="muted" style="font-size:13px">${prettyDay}</span>
+       ${isMgr()?`<select id="suser" style="margin-left:auto;padding:8px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);color:var(--fg)"><option value="all">All members</option>${(mems||[]).map(m=>`<option value="${m.user_id}" ${shotsState.user===m.user_id?'selected':''}>${esc(nameOf(m.user_id))}</option>`).join("")}</select>`:''}
+       <span class="pill muted"${isMgr()?'':' style="margin-left:auto"'}>${(rows||[]).length} shot(s)</span>
+     </div>
+   </div>
+   ${(rows||[]).length?`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(210px,1fr))">
+     ${rows.map(s=>{const u=urlMap[s.thumb_path||s.storage_path]||"";return `<div class="card" style="overflow:hidden;cursor:pointer" data-shot="${esc(u)}" data-meta="${esc(nameOf(s.user_id)+' · '+new Date(s.captured_at).toLocaleString())}">
+       <div style="aspect-ratio:16/10;background:var(--surface-2);background-size:cover;background-position:center top;${u?`background-image:url('${u}')`:''}"></div>
+       <div style="padding:8px 11px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+         <div style="min-width:0"><div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(nameOf(s.user_id))}</div>
+           <div class="muted" style="font-size:11px">${new Date(s.captured_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div></div>
+         <span class="pill ${s.activity_pct>=75?'good':s.activity_pct>=40?'warn':'muted'}" style="flex:none">${s.activity_pct==null?'—':s.activity_pct+'%'}</span>
+       </div></div>`;}).join("")}
+   </div>`:`<div class="card"><div class="empty">${ICON.shots}<div><b>No screenshots on ${prettyDay}.</b></div>
+     <p class="hint" style="max-width:440px;margin:8px auto 0">Screenshots are captured automatically by the Fitma Tick desktop app while the timer runs. Pick another day, or install the app on a member's computer.</p></div></div>`}`;
+  const setDay=d=>{shotsState.date=d;viewShots();};
+  c.querySelector("#sday").onchange=e=>setDay(e.target.value);
+  c.querySelector("#pday").onclick=()=>setDay(dkey(new Date(from.getTime()-864e5)));
+  const nb=c.querySelector("#nday"); if(nb&&!nb.disabled) nb.onclick=()=>setDay(dkey(new Date(from.getTime()+864e5)));
+  const su=c.querySelector("#suser"); if(su) su.onchange=e=>{shotsState.user=e.target.value;viewShots();};
+  c.querySelectorAll("[data-shot]").forEach(el=>el.onclick=()=>{const u=el.dataset.shot;if(!u)return;
+    showModal(`<img src="${esc(u)}" style="width:100%;border-radius:10px;display:block"><div class="muted" style="font-size:13px;margin-top:8px">${esc(el.dataset.meta||'')}</div><div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn" onclick="window._closeModal()">Close</button></div>`);
+    const mm=document.querySelector(".modal"); if(mm) mm.style.maxWidth="860px";});
 }
 
 /* =================== BILLING =================== */
