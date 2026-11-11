@@ -596,10 +596,11 @@ async function viewShots(){
 
 /* =================== BILLING =================== */
 const PLANS=[
-  {code:"starter",name:"Starter",price:3.99,feats:["Time tracking & web timer","Automatic screenshots","Activity levels","Projects & tasks","Basic reports"]},
-  {code:"pro",name:"Professional",price:6.99,feats:["Everything in Starter","App & URL tracking","Advanced reports","Integrations","Priority support"]},
-  {code:"enterprise",name:"Enterprise",price:null,feats:["Everything in Pro","SSO & security review","White-label","Dedicated support","Custom contract"]}
+  {code:"starter",name:"Starter",price:2.99,feats:["Automatic time tracking","Activity levels","Screenshots","Timesheets","Windows & Mac"]},
+  {code:"pro",name:"Pro",price:3.99,popular:true,feats:["Everything in Starter","Attendance & break tracking","App & website reports","Idle detection","CSV exports"]},
+  {code:"business",name:"Business",price:4.49,feats:["Everything in Pro","Timesheet approvals","Payroll-ready reports","Screenshot frequency control","Priority support"]}
 ];
+const ANNUAL_DISCOUNT=0.20; // "Annual, save 20%" to match fitma.lk
 async function viewBilling(){
   const {data:co}=await sb.from("companies").select("*").eq("id",cid()).single();
   const {data:invs}=await sb.from("invoices").select("*").eq("company_id",cid()).order("created_at",{ascending:false});
@@ -614,13 +615,14 @@ async function viewBilling(){
       <div style="text-align:right">${statusPill}<div class="muted" style="font-size:13px;margin-top:6px">${seats||1} active member(s)</div></div></div>
     </div>
     <div>
-      <div class="sec-head" style="margin:2px 2px 12px"><h3>Choose a plan</h3><span class="muted" style="font-size:13px">Billed in USD, per member, annually</span></div>
+      <div class="sec-head" style="margin:2px 2px 12px"><h3>Choose a plan</h3><span class="muted" style="font-size:13px">Per user, billed annually in USD · save 20% · 14-day free trial</span></div>
       <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
-      ${PLANS.map(p=>`<div class="card plan-card">
-        <div><div style="font-family:var(--fh);font-weight:600;font-size:16px">${p.name}</div>
-          <div class="price">${p.price!=null?money(p.price):'Custom'}<small>${p.price!=null?' /user / mo':''}</small></div></div>
-        <div style="display:flex;flex-direction:column;gap:7px">${p.feats.map(f=>`<div class="feat">${TICK.replace('stroke-width="3"','stroke-width="3"')}<span>${esc(f)}</span></div>`).join("")}</div>
-        ${p.price!=null?`<button class="btn pri" data-sub="${p.code}" data-price="${p.price}" style="margin-top:auto">Subscribe</button>`:`<button class="btn" data-contact="1" style="margin-top:auto">Contact sales</button>`}
+      ${PLANS.map(p=>`<div class="card plan-card"${p.popular?' style="border-color:var(--accent)"':''}>
+        <div><div style="display:flex;align-items:center;gap:8px"><div style="font-family:var(--fh);font-weight:600;font-size:16px">${p.name}</div>${p.popular?'<span class="pill accent">Most popular</span>':''}</div>
+          <div class="price">${money(p.price)}<small> /user / mo</small></div>
+          <div class="hint">billed annually, save 20%</div></div>
+        <div style="display:flex;flex-direction:column;gap:7px">${p.feats.map(f=>`<div class="feat">${TICK}<span>${esc(f)}</span></div>`).join("")}</div>
+        <button class="btn ${p.popular?'acc':'pri'}" data-sub="${p.code}" data-price="${p.price}" style="margin-top:auto">Subscribe</button>
       </div>`).join("")}
       </div>
     </div>
@@ -639,11 +641,13 @@ async function viewBilling(){
 }
 async function subscribeFlow(planCode,price,seats){
   const plan=PLANS.find(p=>p.code===planCode);
-  const annual=(price*seats*12);
+  const list=price*seats*12;
+  const annual=list*(1-ANNUAL_DISCOUNT);
   showModal(`<h3 style="margin-bottom:4px">Subscribe to ${plan.name}</h3>
     <p class="muted" style="margin:0 0 16px">${money(price)} / member / month, billed annually.</p>
     <div class="card" style="padding:14px;background:var(--surface-2);box-shadow:none">
-      <div style="display:flex;justify-content:space-between;padding:4px 0"><span class="muted">${seats} member(s) × ${money(price)} × 12 mo</span><span class="tnum" style="font-weight:600">${money(annual)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0"><span class="muted">${seats} member(s) × ${money(price)} × 12 months</span><span class="tnum" style="font-weight:600">${money(list)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0"><span class="muted">Annual discount (20%)</span><span class="tnum" style="font-weight:600;color:var(--accent)">−${money(list-annual)}</span></div>
       <div style="display:flex;justify-content:space-between;padding:8px 0 0;border-top:1px solid var(--border);margin-top:6px"><span style="font-weight:600">Total due / year</span><span class="tnum" style="font-weight:700;font-family:var(--fh)">${money(annual)}</span></div>
     </div>
     <p class="hint" style="margin-top:12px">We bill annually to keep per-member cost low. Click below to generate your invoice with payment instructions.</p>
