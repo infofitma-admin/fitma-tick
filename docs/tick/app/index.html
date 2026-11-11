@@ -295,12 +295,14 @@ const ICON={
   projects:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
   shots:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="13" rx="2"/><circle cx="12" cy="12.5" r="3.2"/><path d="M8 6l1.5-2h5L16 6"/></svg>',
   billing:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 10h19"/></svg>',
-  operator:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg>'};
+  operator:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg>',
+  reports:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v16h16"/><path d="M8 16l3-4 3 2 4-6"/></svg>'};
 function isMgr(){return ["owner","admin"].includes(state.membership.role);}
 function navItems(){
   const n=[["overview","Overview"],["timesheet","My timesheet"]];
   if(isMgr()) n.push(["team","Team"]);
   n.push(["projects","Projects & tasks"],["shots","Screenshots"]);
+  if(isMgr()) n.push(["reports","Reports"]);
   if(isMgr()) n.push(["billing","Billing & plan"]);
   if(state.isPlatformAdmin) n.push(["operator","Operator"]);
   return n;
@@ -337,7 +339,7 @@ function renderShell(){
 }
 function closeRail(){const r=app.querySelector("#rail"),s=app.querySelector("#scrim");if(r)r.classList.remove("open");if(s)s.hidden=true;}
 function setActive(v){app.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
-  const titles={overview:"Overview",timesheet:"My timesheet",team:"Team",projects:"Projects & tasks",shots:"Screenshots",billing:"Billing & plan",operator:"Operator — all companies"};
+  const titles={overview:"Overview",timesheet:"My timesheet",team:"Team",projects:"Projects & tasks",shots:"Screenshots",reports:"Reports",billing:"Billing & plan",operator:"Operator — all companies"};
   app.querySelector("#viewtitle").textContent=titles[v]||v;}
 function content(){return app.querySelector("#content");}
 function renderLoader(t){app.innerHTML=`<div class="loader"><div class="spin"></div><div>${esc(t||"Loading…")}</div></div>`;}
@@ -351,6 +353,7 @@ async function loadView(v){
     else if(v==="team") await viewTeam();
     else if(v==="projects") await viewProjects();
     else if(v==="shots") await viewShots();
+    else if(v==="reports") await viewReports();
     else if(v==="billing") await viewBilling();
     else if(v==="operator") await viewOperator();
   }catch(err){ content().innerHTML=`<div class="card"><div class="msg err" style="margin:16px">${esc(err.message||err)}</div></div>`; }
@@ -689,6 +692,129 @@ async function viewInvoice(id){
   if(mp)mp.onclick=async()=>{await sb.from("invoices").update({status:"paid",paid_at:new Date().toISOString()}).eq("id",i.id);
     await sb.from("companies").update({sub_status:"active",plan_code:(await sb.from("subscriptions").select("plan_code").eq("company_id",cid()).order("created_at",{ascending:false}).limit(1).single()).data?.plan_code||"starter"}).eq("id",cid());
     _closeModal();loadView("billing");};
+}
+
+/* =================== REPORTS =================== */
+function toCsv(rows){return rows.map(r=>r.map(c=>{c=(c==null?"":String(c));return /[",\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(",")).join("\n");}
+function downloadCsv(fname,rows){try{const b=new Blob([toCsv(rows)],{type:"text/csv;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=fname;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);}catch(e){alert2("Couldn't export: "+e.message);}}
+function reportRange(key){const now=new Date();let from,to=new Date(now);to.setHours(23,59,59,999);
+  if(key==="today"){from=new Date(now);from.setHours(0,0,0,0);}
+  else if(key==="week"){from=new Date(now);const d=(from.getDay()+6)%7;from.setDate(from.getDate()-d);from.setHours(0,0,0,0);}
+  else if(key==="month"){from=new Date(now.getFullYear(),now.getMonth(),1);}
+  else if(key==="last7"){from=new Date(now);from.setDate(from.getDate()-6);from.setHours(0,0,0,0);}
+  else {from=new Date(now);from.setDate(from.getDate()-29);from.setHours(0,0,0,0);}
+  return {from,to};}
+function daysBetween(from,to){const a=[];const d=new Date(from);d.setHours(0,0,0,0);const end=new Date(to);while(d<=end){a.push(new Date(d));d.setDate(d.getDate()+1);}return a;}
+const dkey=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const hrs=sec=>(Math.max(0,sec||0)/3600);
+let reportsState={tab:"hours",range:"week"};
+let _reportExport=null;
+
+async function viewReports(){
+  const c=content();
+  const tabs=[["hours","Tracked hours"],["timesheet","Timesheet"],["attendance","Attendance"],["apps","Apps & websites"]];
+  c.innerHTML=`
+   <div class="card" style="padding:12px 16px">
+     <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+       <div class="tabs" style="margin:0;flex:0 1 auto;flex-wrap:wrap">${tabs.map(([k,l])=>`<button data-rt="${k}" class="${reportsState.tab===k?'on':''}">${l}</button>`).join("")}</div>
+       <select id="rrange" style="margin-left:auto;padding:8px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);color:var(--fg)">
+         <option value="today">Today</option><option value="week">This week</option><option value="month">This month</option><option value="last7">Last 7 days</option><option value="last30">Last 30 days</option></select>
+       <button class="btn sm" id="rexport">Export CSV</button>
+     </div>
+   </div>
+   <div id="rbody"><div class="loader" style="min-height:160px"><div class="spin"></div></div></div>`;
+  c.querySelector("#rrange").value=reportsState.range;
+  c.querySelectorAll("[data-rt]").forEach(b=>b.onclick=()=>{reportsState.tab=b.dataset.rt;viewReports();});
+  c.querySelector("#rrange").onchange=e=>{reportsState.range=e.target.value;viewReports();};
+  c.querySelector("#rexport").onclick=()=>{ if(_reportExport) downloadCsv(_reportExport.name,_reportExport.rows); };
+
+  const {from,to}=reportRange(reportsState.range);
+  const fromISO=from.toISOString(), toISO=to.toISOString();
+  const [{data:mems},{data:projs}]=await Promise.all([
+    sb.from("memberships").select("user_id,role").eq("company_id",cid()).eq("status","active"),
+    sb.from("projects").select("id,name").eq("company_id",cid())
+  ]);
+  const pm=await profilesMap((mems||[]).map(m=>m.user_id));
+  const nameOf=u=>pm[u]||(u===state.user.id?(state.user.user_metadata?.full_name||"You"):"Member");
+  const projName={}; (projs||[]).forEach(p=>projName[p.id]=p.name);
+  const body=c.querySelector("#rbody");
+  const rangeLabel=`${from.toLocaleDateString()} – ${to.toLocaleDateString()}`;
+
+  if(reportsState.tab==="apps"){
+    const {data:au}=await sb.from("app_usage").select("user_id,app_name,host,url,started_at").eq("company_id",cid()).gte("started_at",fromISO).lte("started_at",toISO);
+    const rows=au||[]; const SAMPLE_SEC=30; // desktop samples ~every 30s
+    const agg={};
+    rows.forEach(r=>{const key=(r.app_name||r.host||"Unknown");(agg[key]=agg[key]||{sec:0,n:0}); agg[key].sec+=SAMPLE_SEC; agg[key].n++;});
+    const list=Object.entries(agg).map(([k,v])=>({app:k,sec:v.sec,n:v.n})).sort((a,b)=>b.sec-a.sec);
+    _reportExport={name:`apps-websites-${dkey(from)}.csv`,rows:[["App / Website","Approx. time","Samples"]].concat(list.map(x=>[x.app,fmtDur(x.sec),x.n]))};
+    body.innerHTML=`<div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Apps & websites</h3><span class="muted" style="font-size:13px">${rangeLabel} · approximate</span></div>
+      ${list.length?`<table><thead><tr><th>App / Website</th><th style="width:45%">Share</th><th class="tnum" style="text-align:right">Approx. time</th></tr></thead><tbody>
+      ${list.slice(0,40).map(x=>{const max=list[0].sec||1;return `<tr><td>${esc(x.app)}</td><td><div class="bar"><i style="width:${Math.round(x.sec/max*100)}%"></i></div></td><td class="tnum" style="text-align:right;font-weight:600">${fmtDur(x.sec)}</td></tr>`;}).join("")}
+      </tbody></table><p class="hint" style="padding:10px 18px">Time is estimated from activity samples. It gets exact once more members run the desktop app.</p>`:`<div class="empty">No app or website activity in this range yet. This fills in as your team tracks with the desktop app.</div>`}</div>`;
+    return;
+  }
+
+  // time-entry based reports
+  const {data:ents}=await sb.from("time_entries").select("user_id,project_id,started_at,ended_at,duration_sec").eq("company_id",cid()).gte("started_at",fromISO).lte("started_at",toISO).order("started_at");
+  const E=ents||[];
+  const members=(mems||[]).map(m=>m.user_id);
+
+  if(reportsState.tab==="hours"){
+    const byUser={}, byProj={}; let total=0;
+    E.forEach(e=>{const s=e.duration_sec||0;total+=s;byUser[e.user_id]=(byUser[e.user_id]||0)+s;const pk=e.project_id||"__none";byProj[pk]=(byProj[pk]||0)+s;});
+    const urows=members.map(u=>({u,sec:byUser[u]||0})).sort((a,b)=>b.sec-a.sec);
+    const prows=Object.entries(byProj).map(([k,v])=>({p:k==="__none"?"No project":(projName[k]||"Project"),sec:v})).sort((a,b)=>b.sec-a.sec);
+    _reportExport={name:`tracked-hours-${dkey(from)}.csv`,rows:[["Member","Hours","Seconds"]].concat(urows.map(r=>[nameOf(r.u),hrs(r.sec).toFixed(2),r.sec])).concat([[],["Project","Hours"]]).concat(prows.map(r=>[r.p,hrs(r.sec).toFixed(2)]))};
+    const maxU=Math.max(1,...urows.map(r=>r.sec));
+    body.innerHTML=`
+     <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+       <div class="card stat"><div class="k">Total tracked</div><div class="v tnum">${fmtDur(total)}</div><div class="sub">${rangeLabel}</div></div>
+       <div class="card stat"><div class="k">People tracked</div><div class="v tnum">${urows.filter(r=>r.sec>0).length}</div><div class="sub">of ${members.length}</div></div>
+       <div class="card stat"><div class="k">Avg / person</div><div class="v tnum">${fmtDur(urows.length?total/urows.length:0)}</div><div class="sub">across the team</div></div>
+     </div>
+     <div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>By member</h3></div>
+       <table><thead><tr><th>Member</th><th style="width:45%">Tracked</th><th class="tnum" style="text-align:right">Hours</th></tr></thead><tbody>
+       ${urows.map(r=>`<tr><td><div style="display:flex;align-items:center;gap:9px"><div class="avatar" style="width:26px;height:26px;font-size:11px">${esc(initials(nameOf(r.u)))}</div>${esc(nameOf(r.u))}</div></td>
+        <td><div class="bar"><i style="width:${Math.round(r.sec/maxU*100)}%"></i></div></td><td class="tnum" style="text-align:right;font-weight:600">${fmtDur(r.sec)}</td></tr>`).join("")}
+       </tbody></table></div>
+     <div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>By project</h3></div>
+       ${prows.length?`<table><thead><tr><th>Project</th><th class="tnum" style="text-align:right">Hours</th></tr></thead><tbody>
+       ${prows.map(r=>`<tr><td>${esc(r.p)}</td><td class="tnum" style="text-align:right;font-weight:600">${fmtDur(r.sec)}</td></tr>`).join("")}</tbody></table>`:`<div class="empty">No time in this range.</div>`}</div>`;
+    return;
+  }
+
+  if(reportsState.tab==="timesheet"){
+    const days=daysBetween(from,to);
+    const grid={}; members.forEach(u=>grid[u]={});
+    E.forEach(e=>{const dk=dkey(new Date(e.started_at));const u=e.user_id;grid[u]=grid[u]||{};grid[u][dk]=(grid[u][dk]||0)+(e.duration_sec||0);});
+    const dayCols=days.slice(-14); // cap visible columns; CSV has all
+    _reportExport={name:`timesheet-${dkey(from)}.csv`,rows:[["Member"].concat(days.map(d=>dkey(d))).concat(["Total"])].concat(
+      members.map(u=>[nameOf(u)].concat(days.map(d=>hrs((grid[u]||{})[dkey(d)]||0).toFixed(2))).concat([hrs(days.reduce((s,d)=>s+((grid[u]||{})[dkey(d)]||0),0)).toFixed(2)])))};
+    body.innerHTML=`<div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Timesheet</h3><span class="muted" style="font-size:13px">${rangeLabel}${days.length>14?' · last 14 days shown, CSV has all':''}</span></div>
+      <div style="overflow-x:auto"><table><thead><tr><th>Member</th>${dayCols.map(d=>`<th class="tnum" style="text-align:right">${d.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</th>`).join("")}<th class="tnum" style="text-align:right">Total</th></tr></thead><tbody>
+      ${members.map(u=>{const tot=days.reduce((s,d)=>s+((grid[u]||{})[dkey(d)]||0),0);return `<tr><td style="font-weight:600;white-space:nowrap">${esc(nameOf(u))}</td>${dayCols.map(d=>{const v=(grid[u]||{})[dkey(d)]||0;return `<td class="tnum" style="text-align:right;${v?'':'color:var(--faint)'}">${v?hrs(v).toFixed(1):'—'}</td>`;}).join("")}<td class="tnum" style="text-align:right;font-weight:700">${hrs(tot).toFixed(1)}</td></tr>`;}).join("")}
+      </tbody></table></div></div>`;
+    return;
+  }
+
+  if(reportsState.tab==="attendance"){
+    // per member per day: first start, last end, total
+    const att={}; members.forEach(u=>att[u]={});
+    E.forEach(e=>{const u=e.user_id;const st=new Date(e.started_at);const dk=dkey(st);att[u]=att[u]||{};const cell=att[u][dk]||{first:null,last:null,sec:0};
+      if(!cell.first||st<cell.first)cell.first=st;const en=e.ended_at?new Date(e.ended_at):st;if(!cell.last||en>cell.last)cell.last=en;cell.sec+=(e.duration_sec||0);att[u][dk]=cell;});
+    const days=daysBetween(from,to);
+    const summary=members.map(u=>{const ds=Object.values(att[u]||{});const present=ds.length;const totSec=ds.reduce((s,x)=>s+x.sec,0);
+      const starts=ds.map(x=>x.first.getHours()*60+x.first.getMinutes()).filter(x=>x!=null);const avgStart=starts.length?Math.round(starts.reduce((a,b)=>a+b,0)/starts.length):null;
+      return {u,present,totSec,avgStart};}).sort((a,b)=>b.present-a.present);
+    const hhmm=m=>m==null?"—":String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
+    _reportExport={name:`attendance-${dkey(from)}.csv`,rows:[["Member","Days present","Avg start","Total hours"]].concat(summary.map(r=>[nameOf(r.u),r.present,hhmm(r.avgStart),hrs(r.totSec).toFixed(2)]))};
+    body.innerHTML=`<div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Attendance</h3><span class="muted" style="font-size:13px">${rangeLabel} · ${days.length} day(s)</span></div>
+      <table><thead><tr><th>Member</th><th class="tnum" style="text-align:right">Days present</th><th class="tnum" style="text-align:right">Avg start</th><th class="tnum" style="text-align:right">Total hours</th></tr></thead><tbody>
+      ${summary.map(r=>`<tr><td><div style="display:flex;align-items:center;gap:9px"><div class="avatar" style="width:26px;height:26px;font-size:11px">${esc(initials(nameOf(r.u)))}</div>${esc(nameOf(r.u))}</div></td>
+        <td class="tnum" style="text-align:right">${r.present}</td><td class="tnum" style="text-align:right">${hhmm(r.avgStart)}</td><td class="tnum" style="text-align:right;font-weight:600">${fmtDur(r.totSec)}</td></tr>`).join("")}
+      </tbody></table><p class="hint" style="padding:10px 18px">Start-time rules (on-time vs late) arrive with company work-schedule settings, so no one is ever marked late by mistake.</p></div>`;
+    return;
+  }
 }
 
 /* =================== OPERATOR (platform admin) =================== */
