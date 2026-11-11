@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#273545">
+<title>Fitma Team</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Corben:wght@400;700&family=Montserrat:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#eef0f2; --surface:#ffffff; --surface-2:#f5f6f7; --border:#d8dddf;
+  --fg:#273545; --muted:#5d7488; --faint:#92aabe;
+  --primary:#273545; --accent:#3d5c71; --accent-soft:#e2e8ee;
+  --good:#2f8f5b; --good-soft:#dcefe3; --warn:#b07a28; --warn-soft:#f3e8d4; --crit:#c0453f; --crit-soft:#f4e0df;
+  --radius:14px; --shadow:0 1px 2px rgba(39,53,69,.06),0 8px 24px rgba(39,53,69,.07);
+  --ff:"Montserrat",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --fh:"Corben","Montserrat",Georgia,serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--ff);font-size:14px;line-height:1.5}
+.wrap{max-width:1080px;margin:0 auto;padding-block:22px;padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+h1,h2{font-family:var(--fh);font-weight:700;margin:0}
+h3{font-family:var(--ff);font-weight:600;margin:0}
+.top{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+.top img{height:34px;width:34px;border-radius:8px}
+.sub{color:var(--muted);font-size:13px;margin:2px 0 18px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:14px}
+.stat{padding:14px 16px}
+.stat .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.stat .v{font-family:var(--fh);font-size:26px;font-weight:700;margin-top:3px}
+.stat .s{font-size:12px;color:var(--faint);margin-top:2px}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600}
+td.n{text-align:right;font-variant-numeric:tabular-nums}
+th.n{text-align:right}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600}
+.pill.good{background:var(--good-soft);color:var(--good)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.crit{background:var(--crit-soft);color:var(--crit)}
+.pill.muted{background:var(--surface-2);color:var(--muted)}
+.pill.accent{background:var(--accent-soft);color:var(--accent)}
+.sec-head{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 10px}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:inline-grid;place-items:center;font-size:11px;font-weight:700;flex:0 0 auto}
+.memrow{cursor:pointer}
+.memrow:hover{background:var(--surface-2)}
+.detail td{background:var(--surface-2);padding:0}
+.detail table{margin:0}
+.detail th,.detail td{border-bottom:1px solid var(--border)}
+.bar{height:7px;border-radius:5px;background:var(--surface-2);overflow:hidden;min-width:60px}
+.bar i{display:block;height:100%;background:var(--accent)}
+.gate{max-width:360px;margin:60px auto;text-align:center}
+.gate input{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:10px;font-size:15px;margin:12px 0;font-family:var(--ff)}
+.btn{background:var(--primary);color:#fff;border:0;border-radius:10px;padding:11px 16px;font-weight:600;cursor:pointer;font-family:var(--ff);font-size:14px}
+.btn.ghost{background:var(--surface-2);color:var(--fg);border:1px solid var(--border)}
+.muted{color:var(--muted)}
+.err{color:var(--crit);font-size:13px;margin-top:8px}
+.foot{color:var(--faint);font-size:12px;margin-top:16px;text-align:center}
+.chip{font-size:11px;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:3px 10px}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="gate card" style="padding:26px">
+    <div style="font-family:var(--fh);font-size:20px;font-weight:700">Fitma Team</div>
+    <p class="muted" style="font-size:13px;margin:6px 0 0">Enter the admin PIN to view the team dashboard.</p>
+    <input id="pin" type="password" placeholder="Admin PIN" autocomplete="off">
+    <button class="btn" id="go" style="width:100%">View dashboard</button>
+    <div class="err" id="gerr" hidden></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
+<script>
+const SB_URL="https://adyqhpqugdlksqzpscwm.supabase.co";
+const SB_KEY="sb_publishable_l3HBtg1KUO6nBZkwxXqQvw_9uPyXSRz";
+const sb=supabase.createClient(SB_URL,SB_KEY);
+const app=document.getElementById("app");
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const initials=n=>(n||"?").split(/\s+/).map(w=>w[0]).join("").slice(0,2).toUpperCase();
+const fmtH=m=>{m=Math.max(0,Math.round(m||0));const h=Math.floor(m/60),mm=m%60;return h+"h"+(mm?" "+mm+"m":"");};
+const fmtDate=d=>new Date(d+"T00:00:00").toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
+
+function gate(){
+  const go=()=>{const pin=document.getElementById("pin").value.trim();if(pin){try{localStorage.setItem("fitma_pin",pin)}catch(e){}load(pin);}};
+  document.getElementById("go").onclick=go;
+  document.getElementById("pin").addEventListener("keydown",e=>{if(e.key==="Enter")go();});
+  let saved=null;try{saved=localStorage.getItem("fitma_pin")}catch(e){}
+  if(saved)load(saved);
+}
+async function load(pin){
+  app.innerHTML=`<div class="sub">Loading real data from WebWork…</div>`;
+  const {data,error}=await sb.rpc("fitma_team_report",{p_pin:pin});
+  if(error||!data||data.error){
+    try{localStorage.removeItem("fitma_pin")}catch(e){}
+    app.innerHTML=`<div class="gate card" style="padding:26px"><div style="font-family:var(--fh);font-size:20px;font-weight:700">Fitma Team</div>
+      <p class="err" style="margin:8px 0 0">${data&&data.error?'Wrong PIN. Try again.':'Could not load. '+esc(error?error.message:'')}</p>
+      <input id="pin" type="password" placeholder="Admin PIN" autocomplete="off"><button class="btn" id="go" style="width:100%">View dashboard</button></div>`;
+    gate();return;
+  }
+  render(data);
+}
+
+function render(d){
+  const members=d.members||[], att=d.attendance||[];
+  const byId={}; members.forEach(m=>byId[m.webwork_id]={m,rows:[]});
+  att.forEach(a=>{ if(byId[a.webwork_id]) byId[a.webwork_id].rows.push(a); });
+  const dates=att.map(a=>a.work_date).sort();
+  const from=dates[0], to=dates[dates.length-1];
+  // team totals
+  let teamMin=0,lateTotal=0; const actAll=[];
+  const people=members.map(m=>{
+    const rows=(byId[m.webwork_id].rows||[]).slice().sort((a,b)=>a.work_date<b.work_date?-1:1);
+    const worked=rows.filter(r=>r.worked_minutes>0||r.start_time);
+    const totalMin=rows.reduce((s,r)=>s+(r.worked_minutes||0),0);
+    const daysWorked=worked.length;
+    const acts=rows.filter(r=>r.start_time&&r.activity_pct!=null).map(r=>r.activity_pct);
+    const avgAct=acts.length?Math.round(acts.reduce((a,b)=>a+b,0)/acts.length):null;
+    const late=rows.filter(r=>r.is_late).length;
+    const early=rows.filter(r=>r.is_left_early).length;
+    const last=rows[rows.length-1];
+    teamMin+=totalMin; lateTotal+=late; if(avgAct!=null) actAll.push(avgAct);
+    return {m,rows,totalMin,daysWorked,avgAct,late,early,last};
+  }).sort((a,b)=>b.totalMin-a.totalMin);
+  const avgActTeam=actAll.length?Math.round(actAll.reduce((a,b)=>a+b,0)/actAll.length):0;
+
+  const roleName={intern:'Intern',senior:'Senior',founder:'Founder',admin:'Admin'};
+  app.innerHTML=`
+   <div class="top"><img src="../tick/app/mascot.png" alt="" onerror="this.style.display='none'"><div>
+     <h1 style="font-size:22px">Fitma Team</h1></div>
+     <span class="chip" style="margin-left:auto">${from?fmtDate(from):''} – ${to?fmtDate(to):''}</span></div>
+   <div class="sub">Live attendance &amp; hours from WebWork · updates daily · <a href="#" id="logout" style="color:var(--accent)">lock</a></div>
+   <div class="grid">
+     <div class="card stat"><div class="k">Team hours</div><div class="v">${fmtH(teamMin)}</div><div class="s">this period</div></div>
+     <div class="card stat"><div class="k">Avg activity</div><div class="v">${avgActTeam}%</div><div class="s">tracked members</div></div>
+     <div class="card stat"><div class="k">Late starts</div><div class="v">${lateTotal}</div><div class="s">across the team</div></div>
+     <div class="card stat"><div class="k">Members</div><div class="v">${members.length}</div><div class="s">tracked</div></div>
+   </div>
+   <div class="card">
+     <div class="sec-head"><h3>By member</h3><span class="chip">tap a row for daily detail</span></div>
+     <div style="overflow-x:auto"><table><thead><tr>
+       <th>Member</th><th class="n">Hours</th><th class="n">Avg/day</th><th class="n">Activity</th><th class="n">Days</th><th class="n">Late</th><th>Last seen</th>
+     </tr></thead><tbody id="rows"></tbody></table></div>
+   </div>
+   <div class="foot">Fitma Tick · internal team dashboard · data synced from WebWork Tracker</div>`;
+  const tb=document.getElementById("rows");
+  people.forEach((p,idx)=>{
+    const target=p.m.target_minutes;
+    const avgDay=p.daysWorked?p.totalMin/p.daysWorked:0;
+    const targetPill=target?(avgDay>=target?'good':avgDay>=target*0.85?'warn':'crit'):'muted';
+    const actPill=p.avgAct==null?'muted':(p.avgAct>=70?'good':p.avgAct>=40?'warn':'crit');
+    const tr=document.createElement("tr");tr.className="memrow";
+    tr.innerHTML=`<td><div style="display:flex;align-items:center;gap:9px"><span class="avatar">${esc(initials(p.m.name))}</span>
+        <div><div style="font-weight:600">${esc(p.m.name)}</div><div class="muted" style="font-size:11px">${roleName[p.m.role]||esc(p.m.role||'')}</div></div></div></td>
+      <td class="n" style="font-weight:700">${fmtH(p.totalMin)}</td>
+      <td class="n"><span class="pill ${targetPill}">${fmtH(avgDay)}${target?' / '+fmtH(target):''}</span></td>
+      <td class="n">${p.avgAct==null?'<span class="muted">manual</span>':`<span class="pill ${actPill}">${p.avgAct}%</span>`}</td>
+      <td class="n">${p.daysWorked}</td>
+      <td class="n">${p.late?`<span class="pill crit">${p.late}</span>`:'<span class="muted">0</span>'}</td>
+      <td>${p.last&&p.last.start_time?esc(p.last.start_time)+(p.last.end_time?'–'+esc(p.last.end_time):'')+' <span class="muted" style="font-size:11px">'+fmtDate(p.last.work_date)+'</span>':'<span class="muted">—</span>'}</td>`;
+    const det=document.createElement("tr");det.className="detail";det.hidden=true;
+    det.innerHTML=`<td colspan="7"><table><thead><tr><th>Day</th><th>In</th><th>Out</th><th class="n">Worked</th><th class="n">Activity</th><th>Status</th></tr></thead><tbody>
+      ${p.rows.slice().sort((a,b)=>a.work_date<b.work_date?1:-1).map(r=>`<tr>
+        <td>${fmtDate(r.work_date)}${r.working_day?'':' <span class="pill muted">off</span>'}</td>
+        <td>${r.start_time?esc(r.start_time):'<span class="muted">—</span>'}</td>
+        <td>${r.end_time?esc(r.end_time):'<span class="muted">—</span>'}</td>
+        <td class="n">${r.worked_minutes?fmtH(r.worked_minutes):'<span class="muted">—</span>'}</td>
+        <td class="n">${r.activity_pct==null?'<span class="muted">—</span>':r.activity_pct+'%'}</td>
+        <td>${/Late/.test(r.status||'')?'<span class="pill crit">'+esc(r.status)+'</span>':/early/i.test(r.status||'')?'<span class="pill warn">'+esc(r.status)+'</span>':'<span class="pill good">'+esc(r.status||'—')+'</span>'}</td>
+      </tr>`).join("")}
+    </tbody></table></td>`;
+    tr.onclick=()=>{det.hidden=!det.hidden;};
+    tb.appendChild(tr);tb.appendChild(det);
+  });
+  document.getElementById("logout").onclick=e=>{e.preventDefault();try{localStorage.removeItem("fitma_pin")}catch(x){}location.reload();};
+}
+gate();
+</script>
+</body>
+</html>
