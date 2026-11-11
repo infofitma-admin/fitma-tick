@@ -6,21 +6,24 @@
 <meta name="theme-color" content="#273545">
 <title>Fitma Tick</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Corben:wght@400;700&family=Montserrat:wght@400;500;600;700&display=swap">
 <style>
 /* Layout: fixed left rail + scrolling work area; auth/onboarding are centered single cards.
-   Brand: deep indigo primary with a cyan "tick" accent; cool neutrals biased toward indigo. */
+   Fitma brand: Corben headlines + Montserrat body; Midnight/Harbor/Soft/Sky blue palette. */
 :root{
-  --bg:#eceff4; --surface:#ffffff; --surface-2:#f4f6f9; --border:#dbe1ea;
-  --fg:#1e2a38; --muted:#5e6f81; --faint:#90a0b1;
-  --primary:#273545; --primary-ink:#ffffff; --primary-soft:#e5ebf1;
-  --accent:#0f9b98; --accent-soft:#d6efee;
-  --cream:#f4ecdd; --heart:#e8625f;
-  --good:#16a34a; --good-soft:#dcfce7; --warn:#c77b12; --warn-soft:#fbeccb;
-  --crit:#dc2626; --crit-soft:#fde4e4;
-  --shadow:0 1px 2px rgba(39,53,69,.06),0 8px 24px rgba(39,53,69,.07);
+  --bg:#eef0f2; --surface:#ffffff; --surface-2:#f1f1f1; --border:#d8dddf;
+  --fg:#273545; --muted:#5d7488; --faint:#92aabe;
+  --primary:#273545; --primary-ink:#ffffff; --primary-soft:#e6ebef;
+  --accent:#3d5c71; --accent-2:#6a8599; --accent-soft:#e2e8ee;
+  --cream:#f1f1f1; --heart:#c0453f;
+  --good:#2f8f5b; --good-soft:#dcefe3; --warn:#b07a28; --warn-soft:#f3e8d4;
+  --crit:#c0453f; --crit-soft:#f4e0df;
+  --shadow:0 1px 2px rgba(39,53,69,.06),0 8px 24px rgba(39,53,69,.08);
   --radius:14px;
-  --ff:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
-  --fh:"Space Grotesk","Inter",system-ui,sans-serif;
+  --ff:"Montserrat",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --fh:"Corben","Montserrat",Georgia,serif;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#121a23; --surface:#1b2733; --surface-2:#223040; --border:#2f4255;
@@ -48,7 +51,8 @@
 [hidden]{display:none!important}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--ff);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
-h1,h2,h3,h4{font-family:var(--fh);margin:0;font-weight:600;letter-spacing:-.01em;text-wrap:balance}
+h1,h2{font-family:var(--fh);margin:0;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+h3,h4{font-family:var(--ff);margin:0;font-weight:600;letter-spacing:-.005em;text-wrap:balance}
 a{color:var(--primary);text-decoration:none}
 button{font-family:inherit;font-size:14px;cursor:pointer}
 input,select{font-family:inherit;font-size:14px}
