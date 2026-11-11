@@ -374,38 +374,64 @@ async function profilesMap(ids){
 }
 
 /* =================== OVERVIEW =================== */
+function activityRing(pct){
+  if(pct==null) return '<span class="muted" style="font-size:12px">—</span>';
+  const col=pct>=75?'var(--good)':pct>=40?'var(--warn)':'var(--crit)';
+  const r=13,circ=2*Math.PI*r,off=circ*(1-Math.max(0,Math.min(100,pct))/100);
+  return `<svg width="34" height="34" viewBox="0 0 34 34" style="vertical-align:middle"><circle cx="17" cy="17" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="4"/><circle cx="17" cy="17" r="${r}" fill="none" stroke="${col}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 17 17)"/><text x="17" y="21" text-anchor="middle" font-size="10" font-weight="700" fill="var(--fg)" font-family="var(--ff)">${pct}</text></svg>`;
+}
 async function viewOverview(){
-  const since=startOfWeek();
-  const [{data:mems},{data:entries},{data:projs}]=await Promise.all([
+  const todayISO=startOfToday(), wkISO=startOfWeek();
+  const lastWkISO=new Date(new Date(wkISO).getTime()-7*864e5).toISOString();
+  const yISO=new Date(new Date(todayISO).getTime()-864e5).toISOString();
+  const [{data:mems},{data:ents},{data:projs},{data:shots}]=await Promise.all([
     sb.from("memberships").select("user_id,role").eq("company_id",cid()).eq("status","active"),
-    sb.from("time_entries").select("user_id,duration_sec,started_at,ended_at").eq("company_id",cid()).gte("started_at",since),
-    sb.from("projects").select("id").eq("company_id",cid()).eq("archived",false)
+    sb.from("time_entries").select("user_id,duration_sec,started_at").eq("company_id",cid()).gte("started_at",lastWkISO),
+    sb.from("projects").select("id").eq("company_id",cid()).eq("archived",false),
+    sb.from("screenshots").select("user_id,activity_pct,captured_at").eq("company_id",cid()).gte("captured_at",todayISO)
   ]);
   const pm=await profilesMap((mems||[]).map(m=>m.user_id));
-  const today=startOfToday();
-  let secWeek=0,secToday=0; const perUser={};
-  (entries||[]).forEach(e=>{const d=e.duration_sec||0;secWeek+=d;if(e.started_at>=today)secToday+=d;
-    perUser[e.user_id]=(perUser[e.user_id]||0)+d;});
-  const activeToday=new Set((entries||[]).filter(e=>e.started_at>=today).map(e=>e.user_id)).size;
+  const nameOf=u=>pm[u]||(u===state.user.id?(state.user.user_metadata?.full_name||"You"):"Member");
+  let secToday=0,secYest=0,secWeek=0,secLastWk=0;
+  const puToday={},puWeek={},startToday={};
+  (ents||[]).forEach(e=>{const s=e.duration_sec||0,st=e.started_at;
+    if(st>=todayISO){secToday+=s;puToday[e.user_id]=(puToday[e.user_id]||0)+s;if(!startToday[e.user_id]||st<startToday[e.user_id])startToday[e.user_id]=st;}
+    else if(st>=yISO){secYest+=s;}
+    if(st>=wkISO){secWeek+=s;puWeek[e.user_id]=(puWeek[e.user_id]||0)+s;} else {secLastWk+=s;}
+  });
+  const act={}; (shots||[]).forEach(sh=>{if(sh.activity_pct!=null){(act[sh.user_id]=act[sh.user_id]||{s:0,n:0});act[sh.user_id].s+=sh.activity_pct;act[sh.user_id].n++;}});
+  const actOf=u=>act[u]?Math.round(act[u].s/act[u].n):null;
+  const activeToday=Object.keys(puToday).length;
+  const delta=(a,b)=>{if(!b)return "";const p=Math.round((a-b)/b*100);return (p>=0?"↑":"↓")+Math.abs(p)+"% vs ";};
+  const members=(mems||[]).slice().sort((a,b)=>(puToday[b.user_id]||0)-(puToday[a.user_id]||0));
+  const maxWk=Math.max(1,...Object.values(puWeek),1);
   const c=content();
   c.innerHTML=`
    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
-     <div class="card stat"><div class="k">Tracked today</div><div class="v tnum">${fmtDur(secToday)}</div><div class="sub">${activeToday} of ${mems?.length||0} tracking</div></div>
-     <div class="card stat"><div class="k">This week</div><div class="v tnum">${fmtDur(secWeek)}</div><div class="sub">across the team</div></div>
-     <div class="card stat"><div class="k">Team members</div><div class="v tnum">${mems?.length||0}</div><div class="sub">${(mems||[]).filter(m=>["owner","admin"].includes(m.role)).length} manager(s)</div></div>
+     <div class="card stat"><div class="k">Tracked today</div><div class="v tnum">${fmtDur(secToday)}</div><div class="sub">${delta(secToday,secYest)}${fmtDur(secYest)} yesterday</div></div>
+     <div class="card stat"><div class="k">This week</div><div class="v tnum">${fmtDur(secWeek)}</div><div class="sub">${delta(secWeek,secLastWk)}${fmtDur(secLastWk)} last week</div></div>
+     <div class="card stat"><div class="k">Tracking today</div><div class="v tnum">${activeToday}<span style="font-size:15px;color:var(--faint)"> / ${mems?.length||0}</span></div><div class="sub">people active</div></div>
      <div class="card stat"><div class="k">Active projects</div><div class="v tnum">${projs?.length||0}</div><div class="sub">not archived</div></div>
    </div>
    <div class="card">
-     <div class="sec-head" style="padding:16px 18px 10px"><h3>This week by member</h3><span class="pill muted">Mon–today</span></div>
-     ${(mems||[]).length?`<table><thead><tr><th>Member</th><th>Role</th><th style="width:40%">Tracked</th><th class="tnum" style="text-align:right">Hours</th></tr></thead><tbody>
-       ${(mems||[]).sort((a,b)=>(perUser[b.user_id]||0)-(perUser[a.user_id]||0)).map(m=>{
-         const s=perUser[m.user_id]||0;const max=Math.max(1,...Object.values(perUser));
-         const nm=pm[m.user_id]||(m.user_id===state.user.id?(state.user.user_metadata?.full_name||"You"):"Member");
-         return `<tr><td><div style="display:flex;align-items:center;gap:9px"><div class="avatar" style="width:26px;height:26px;font-size:11px">${esc(initials(nm))}</div>${esc(nm)}</div></td>
-           <td><span class="pill muted">${esc(m.role)}</span></td>
-           <td><div class="bar"><i style="width:${Math.round(s/max*100)}%"></i></div></td>
-           <td class="tnum" style="text-align:right;font-weight:600">${fmtDur(s)}</td></tr>`;}).join("")}
+     <div class="sec-head" style="padding:16px 18px 10px"><h3>Today's activity</h3><span class="pill muted">${new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</span></div>
+     ${members.length?`<table><thead><tr><th>Member</th><th>Role</th><th>Started</th><th style="text-align:center">Activity</th><th class="tnum" style="text-align:right">Tracked</th></tr></thead><tbody>
+       ${members.map(m=>{const u=m.user_id;const nm=nameOf(u);const st=startToday[u];const tracked=puToday[u]||0;
+         return `<tr><td><div style="display:flex;align-items:center;gap:9px"><div class="avatar" style="width:28px;height:28px;font-size:11px">${esc(initials(nm))}</div>${esc(nm)}</div></td>
+           <td><span class="pill ${["owner","admin"].includes(m.role)?'accent':'muted'}">${esc(m.role)}</span></td>
+           <td class="tnum">${st?new Date(st).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'<span class="muted">—</span>'}</td>
+           <td style="text-align:center">${activityRing(actOf(u))}</td>
+           <td class="tnum" style="text-align:right;font-weight:600">${tracked?fmtDur(tracked):'<span class="muted">—</span>'}</td></tr>`;}).join("")}
      </tbody></table>`:`<div class="empty">No members yet.</div>`}
+   </div>
+   <div class="card">
+     <div class="sec-head" style="padding:16px 18px 10px"><h3>This week by member</h3><span class="pill muted">Mon–today</span></div>
+     ${members.length?`<table><thead><tr><th>Member</th><th style="width:45%">Tracked</th><th class="tnum" style="text-align:right">Hours</th></tr></thead><tbody>
+       ${members.slice().sort((a,b)=>(puWeek[b.user_id]||0)-(puWeek[a.user_id]||0)).map(m=>{const s=puWeek[m.user_id]||0;const nm=nameOf(m.user_id);
+         return `<tr><td><div style="display:flex;align-items:center;gap:9px"><div class="avatar" style="width:26px;height:26px;font-size:11px">${esc(initials(nm))}</div>${esc(nm)}</div></td>
+           <td><div class="bar"><i style="width:${Math.round(s/maxWk*100)}%"></i></div></td>
+           <td class="tnum" style="text-align:right;font-weight:600">${fmtDur(s)}</td></tr>`;}).join("")}
+     </tbody></table>`:""}
    </div>`;
 }
 
