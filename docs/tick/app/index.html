@@ -302,7 +302,8 @@ const ICON={
   billing:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 10h19"/></svg>',
   operator:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg>',
   reports:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v16h16"/><path d="M8 16l3-4 3 2 4-6"/></svg>',
-  settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'};
+  settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  finance:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 10h18"/><path d="M7 15h4"/></svg>'};
 function isMgr(){return ["owner","admin"].includes(state.membership.role);}
 const PLAN_RANK={trial:3,internal:3,starter:1,pro:2,business:3,enterprise:3};
 function planAtLeast(name){return (PLAN_RANK[(state.company&&state.company.plan_code)]||0)>=(PLAN_RANK[name]||0);}
@@ -312,6 +313,7 @@ function navItems(){
   if(isMgr()) n.push(["team","Team"]);
   n.push(["projects","Projects & tasks"],["shots","Screenshots"]);
   if(isMgr()) n.push(["reports","Reports"]);
+  if(isMgr()&&planAtLeast("pro")) n.push(["finance","Finances"]);
   if(isMgr()) n.push(["settings","Settings"]);
   if(isMgr()) n.push(["billing","Billing & plan"]);
   if(state.isPlatformAdmin) n.push(["operator","Operator"]);
@@ -349,7 +351,7 @@ function renderShell(){
 }
 function closeRail(){const r=app.querySelector("#rail"),s=app.querySelector("#scrim");if(r)r.classList.remove("open");if(s)s.hidden=true;}
 function setActive(v){app.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
-  const titles={overview:"Overview",timesheet:"My timesheet",team:"Team",projects:"Projects & tasks",shots:"Screenshots",reports:"Reports",settings:"Settings",billing:"Billing & plan",operator:"Operator — all companies"};
+  const titles={overview:"Overview",timesheet:"My timesheet",team:"Team",projects:"Projects & tasks",shots:"Screenshots",reports:"Reports",finance:"Finances",settings:"Settings",billing:"Billing & plan",operator:"Operator — all companies"};
   app.querySelector("#viewtitle").textContent=titles[v]||v;}
 function content(){return app.querySelector("#content");}
 function renderLoader(t){app.innerHTML=`<div class="loader"><div class="spin"></div><div>${esc(t||"Loading…")}</div></div>`;}
@@ -364,6 +366,7 @@ async function loadView(v){
     else if(v==="projects") await viewProjects();
     else if(v==="shots") await viewShots();
     else if(v==="reports") await viewReports();
+    else if(v==="finance") await viewFinances();
     else if(v==="settings") await viewSettings();
     else if(v==="billing") await viewBilling();
     else if(v==="operator") await viewOperator();
@@ -562,16 +565,28 @@ function memberModal(m,nm){
   const self=m.user_id===state.user.id;
   showModal(`<h3 style="margin-bottom:4px">Edit ${esc(nm)}</h3>
     <p class="muted" style="margin:0 0 16px">Set their title, team and role.</p>
-    <div class="field"><label>Title</label><input id="m_title" placeholder="e.g. Designer" value="${esc(m.title||'')}"></div>
-    <div class="field"><label>Team</label><input id="m_team" placeholder="e.g. Product" value="${esc(m.team||'')}"></div>
+    <div class="row" style="gap:10px;flex-wrap:wrap">
+      <div class="field" style="flex:1;min-width:140px"><label>Title</label><input id="m_title" placeholder="e.g. Designer" value="${esc(m.title||'')}"></div>
+      <div class="field" style="flex:1;min-width:140px"><label>Team</label><input id="m_team" placeholder="e.g. Product" value="${esc(m.team||'')}"></div>
+    </div>
     <div class="field"><label>Role</label><select id="m_role" ${m.role==='owner'||self?'disabled':''}>
       <option value="member" ${m.role==='member'?'selected':''}>Member — tracks time, sees own data</option>
       <option value="admin" ${m.role==='admin'?'selected':''}>Admin — manages the team</option>
       ${m.role==='owner'?'<option value="owner" selected>Owner</option>':''}</select>
       ${self?'<p class="hint">You can\'t change your own role.</p>':''}</div>
+    <div style="font-weight:600;margin:4px 0 2px">Pay <span class="muted" style="font-weight:400;font-size:12px">(used by payroll)</span></div>
+    <div class="row" style="gap:10px;flex-wrap:wrap">
+      <div class="field" style="width:130px"><label>Pay type</label><select id="m_paytype"><option value="hourly" ${m.pay_type!=='fixed'?'selected':''}>Hourly</option><option value="fixed" ${m.pay_type==='fixed'?'selected':''}>Fixed</option></select></div>
+      <div class="field" style="flex:1;min-width:120px" id="m_rate_wrap"><label>Hourly rate</label><input id="m_rate" type="number" step="0.01" min="0" value="${m.hourly_rate!=null?m.hourly_rate:''}" placeholder="0.00"></div>
+      <div class="field" style="flex:1;min-width:120px" id="m_fixed_wrap"><label>Monthly pay</label><input id="m_fixed" type="number" step="0.01" min="0" value="${m.monthly_pay!=null?m.monthly_pay:''}" placeholder="0.00"></div>
+    </div>
     <div class="row" style="justify-content:flex-end"><button class="btn" onclick="window._closeModal()">Cancel</button><button class="btn pri" id="m_save">Save</button></div>`);
+  const syncPay=()=>{const t=document.getElementById("m_paytype").value;document.getElementById("m_rate_wrap").style.display=t==='fixed'?'none':'';document.getElementById("m_fixed_wrap").style.display=t==='fixed'?'':'none';};
+  document.getElementById("m_paytype").onchange=syncPay;syncPay();
   document.getElementById("m_save").onclick=async()=>{
-    const upd={title:document.getElementById("m_title").value.trim()||null,team:document.getElementById("m_team").value.trim()||null};
+    const pt=document.getElementById("m_paytype").value;
+    const upd={title:document.getElementById("m_title").value.trim()||null,team:document.getElementById("m_team").value.trim()||null,
+      pay_type:pt,hourly_rate:parseFloat(document.getElementById("m_rate").value)||null,monthly_pay:parseFloat(document.getElementById("m_fixed").value)||null};
     if(!self&&m.role!=='owner')upd.role=document.getElementById("m_role").value;
     const {error}=await sb.from("memberships").update(upd).eq("id",m.id);
     if(error){alert2(error.message);return;}_closeModal();loadView("team");
@@ -911,6 +926,323 @@ async function viewReports(){
       </tbody></table><p class="hint" style="padding:10px 18px">Start-time rules (on-time vs late) arrive with company work-schedule settings, so no one is ever marked late by mistake.</p></div>`;
     return;
   }
+}
+
+/* =================== FINANCES (invoices · payments · payroll) =================== */
+let financeState={tab:"invoices"};
+const todayISODate=()=>new Date().toISOString().slice(0,10);
+const addDaysISO=(n)=>new Date(Date.now()+n*864e5).toISOString().slice(0,10);
+const fmtDate=d=>d?new Date(d).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}):'—';
+const invStatusPill=s=>({draft:'muted',sent:'warn',paid:'good',void:'muted'})[s]||'muted';
+
+async function viewFinances(){
+  const c=content();
+  const tabs=[["invoices","Invoices"],["payments","Payments"],["payroll","Payroll"]];
+  const actions={invoices:["+ New invoice","newInvoice"],payments:["+ Record payment","newPayment"],payroll:["+ New payroll run","newPayroll"]};
+  app.querySelector("#topright").innerHTML=`<button class="btn pri sm" id="finact">${actions[financeState.tab][0]}</button>`;
+  c.innerHTML=`
+   <div class="card" style="padding:12px 16px">
+     <div class="tabs" style="margin:0;flex-wrap:wrap">${tabs.map(([k,l])=>`<button data-ft="${k}" class="${financeState.tab===k?'on':''}">${l}</button>`).join("")}</div>
+   </div>
+   <div id="fbody"><div class="loader" style="min-height:160px"><div class="spin"></div></div></div>`;
+  c.querySelectorAll("[data-ft]").forEach(b=>b.onclick=()=>{financeState.tab=b.dataset.ft;viewFinances();});
+  const act=app.querySelector("#finact");
+  act.onclick=()=>window[actions[financeState.tab][1]]();
+  const body=c.querySelector("#fbody");
+  if(financeState.tab==="invoices") await finInvoices(body);
+  else if(financeState.tab==="payments") await finPayments(body);
+  else await finPayroll(body);
+}
+
+/* ---------- Invoices ---------- */
+async function finInvoices(body){
+  const [{data:invs},{data:pays}]=await Promise.all([
+    sb.from("client_invoices").select("*").eq("company_id",cid()).order("issued_on",{ascending:false}),
+    sb.from("client_payments").select("invoice_id,amount").eq("company_id",cid())
+  ]);
+  const paidByInv={}; (pays||[]).forEach(p=>{if(p.invoice_id)paidByInv[p.invoice_id]=(paidByInv[p.invoice_id]||0)+Number(p.amount||0);});
+  const list=invs||[];
+  const outstanding=list.filter(i=>i.status!=='paid'&&i.status!=='void').reduce((s,i)=>s+Math.max(0,Number(i.total||0)-(paidByInv[i.id]||0)),0);
+  const thisMonth=new Date(); const paidThisMonth=list.filter(i=>i.status==='paid'&&i.paid_on&&new Date(i.paid_on).getMonth()===thisMonth.getMonth()&&new Date(i.paid_on).getFullYear()===thisMonth.getFullYear()).reduce((s,i)=>s+Number(i.total||0),0);
+  const drafts=list.filter(i=>i.status==='draft').length;
+  body.innerHTML=`
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+     <div class="card stat"><div class="k">Outstanding</div><div class="v tnum">${money(outstanding)}</div><div class="sub">unpaid & partial</div></div>
+     <div class="card stat"><div class="k">Paid this month</div><div class="v tnum">${money(paidThisMonth)}</div><div class="sub">${thisMonth.toLocaleDateString(undefined,{month:'long'})}</div></div>
+     <div class="card stat"><div class="k">Drafts</div><div class="v tnum">${drafts}</div><div class="sub">not sent yet</div></div>
+   </div>
+   <div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Invoices</h3><span class="pill muted">${list.length}</span></div>
+   ${list.length?`<div style="overflow-x:auto"><table><thead><tr><th>Invoice</th><th>Client</th><th>Issued</th><th>Due</th><th class="tnum" style="text-align:right">Total</th><th>Status</th><th></th></tr></thead><tbody>
+     ${list.map(i=>{const paid=paidByInv[i.id]||0;const part=paid>0&&paid<Number(i.total||0)&&i.status!=='paid';
+       return `<tr><td class="tnum" style="font-weight:600">${esc(i.number)}</td><td>${esc(i.client_name)}</td><td>${fmtDate(i.issued_on)}</td>
+       <td>${i.due_on?fmtDate(i.due_on):'—'}</td><td class="tnum" style="text-align:right;font-weight:600">${money(i.total)}</td>
+       <td><span class="pill ${invStatusPill(i.status)}">${esc(i.status)}</span>${part?' <span class="pill muted" style="font-size:11px">part-paid</span>':''}</td>
+       <td style="text-align:right"><button class="btn ghost sm" data-inv="${i.id}">Open</button></td></tr>`;}).join("")}
+     </tbody></table></div>`:`<div class="empty">${ICON.billing}<div>No invoices yet. Create one from tracked time or line items.</div></div>`}</div>`;
+  body.querySelectorAll("[data-inv]").forEach(b=>b.onclick=()=>openInvoice(b.dataset.inv));
+}
+
+let _invItems=[];
+async function newInvoice(){
+  _invItems=[{description:"",qty:1,rate:0}];
+  const {data:projs}=await sb.from("projects").select("id,name,bill_rate").eq("company_id",cid()).order("name");
+  const projOpts=`<option value="">— No project —</option>`+(projs||[]).map(p=>`<option value="${p.id}" data-rate="${p.bill_rate||''}">${esc(p.name)}</option>`).join("");
+  showModal(`<h3 style="margin-bottom:4px">New invoice</h3>
+    <p class="muted" style="margin:0 0 14px">Bill a client from tracked time or your own line items.</p>
+    <div id="invmsg"></div>
+    <div class="row" style="gap:10px;flex-wrap:wrap">
+      <div class="field" style="flex:1;min-width:160px"><label>Client name</label><input id="iv_client" placeholder="Acme Inc."></div>
+      <div class="field" style="flex:1;min-width:160px"><label>Project (optional)</label><select id="iv_proj">${projOpts}</select></div>
+    </div>
+    <div class="row" style="gap:10px;flex-wrap:wrap">
+      <div class="field" style="flex:1;min-width:130px"><label>Issue date</label><input id="iv_issue" type="date" value="${todayISODate()}"></div>
+      <div class="field" style="flex:1;min-width:130px"><label>Due date</label><input id="iv_due" type="date" value="${addDaysISO(14)}"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:6px 0 4px"><label style="font-weight:600">Line items</label>
+      <button class="btn ghost sm" id="iv_fromtime" type="button">Add from tracked time</button></div>
+    <div id="iv_items"></div>
+    <button class="btn ghost sm" id="iv_additem" type="button" style="margin-top:6px">+ Add line</button>
+    <div class="row" style="gap:10px;flex-wrap:wrap;margin-top:12px">
+      <div class="field" style="width:120px"><label>Tax %</label><input id="iv_tax" type="number" min="0" step="0.1" value="0"></div>
+      <div class="field" style="flex:1;min-width:160px"><label>Notes (optional)</label><input id="iv_notes" placeholder="Thanks for your business"></div>
+    </div>
+    <div class="card" style="padding:12px 14px;background:var(--surface-2);box-shadow:none;margin-top:4px">
+      <div style="display:flex;justify-content:space-between;padding:2px 0"><span class="muted">Subtotal</span><span class="tnum" id="iv_sub" style="font-weight:600">$0.00</span></div>
+      <div style="display:flex;justify-content:space-between;padding:2px 0"><span class="muted">Tax</span><span class="tnum" id="iv_taxv" style="font-weight:600">$0.00</span></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0 0;border-top:1px solid var(--border);margin-top:4px"><span style="font-weight:600">Total</span><span class="tnum" id="iv_total" style="font-weight:700;font-family:var(--fh)">$0.00</span></div>
+    </div>
+    <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn" onclick="window._closeModal()">Cancel</button><button class="btn pri" id="iv_save">Create invoice</button></div>`);
+  renderInvItems();
+  document.getElementById("iv_additem").onclick=()=>{_invItems.push({description:"",qty:1,rate:0});renderInvItems();};
+  document.getElementById("iv_tax").oninput=recalcInv;
+  document.getElementById("iv_fromtime").onclick=()=>addInvoiceFromTime(projs||[]);
+  document.getElementById("iv_save").onclick=saveInvoice;
+}
+function renderInvItems(){
+  const wrap=document.getElementById("iv_items");
+  wrap.innerHTML=_invItems.map((it,idx)=>`<div class="row" style="gap:8px;align-items:flex-end;margin-bottom:6px">
+     <div class="field" style="flex:1;min-width:120px;margin:0"><input data-ii-desc="${idx}" placeholder="Description" value="${esc(it.description||'')}"></div>
+     <div class="field" style="width:76px;margin:0"><input data-ii-qty="${idx}" type="number" step="0.01" min="0" value="${it.qty??1}" title="Qty / hours"></div>
+     <div class="field" style="width:90px;margin:0"><input data-ii-rate="${idx}" type="number" step="0.01" min="0" value="${it.rate??0}" title="Rate"></div>
+     <div class="tnum" style="width:84px;text-align:right;font-weight:600;padding-bottom:9px" data-ii-amt="${idx}">${money((it.qty||0)*(it.rate||0))}</div>
+     <button class="btn ghost sm" type="button" data-ii-del="${idx}" style="padding:7px 9px">✕</button>
+   </div>`).join("");
+  wrap.querySelectorAll("[data-ii-desc]").forEach(el=>el.oninput=e=>{_invItems[+e.target.dataset.iiDesc].description=e.target.value;});
+  wrap.querySelectorAll("[data-ii-qty]").forEach(el=>el.oninput=e=>{_invItems[+e.target.dataset.iiQty].qty=parseFloat(e.target.value)||0;recalcInv();});
+  wrap.querySelectorAll("[data-ii-rate]").forEach(el=>el.oninput=e=>{_invItems[+e.target.dataset.iiRate].rate=parseFloat(e.target.value)||0;recalcInv();});
+  wrap.querySelectorAll("[data-ii-del]").forEach(el=>el.onclick=e=>{_invItems.splice(+e.target.dataset.iiDel,1);if(!_invItems.length)_invItems.push({description:"",qty:1,rate:0});renderInvItems();});
+  recalcInv();
+}
+function recalcInv(){
+  let sub=0;_invItems.forEach((it,idx)=>{const a=(it.qty||0)*(it.rate||0);sub+=a;const el=document.querySelector(`[data-ii-amt="${idx}"]`);if(el)el.textContent=money(a);});
+  const tax=(parseFloat(document.getElementById("iv_tax").value)||0)/100*sub;
+  document.getElementById("iv_sub").textContent=money(sub);
+  document.getElementById("iv_taxv").textContent=money(tax);
+  document.getElementById("iv_total").textContent=money(sub+tax);
+}
+async function addInvoiceFromTime(projs){
+  const pid=document.getElementById("iv_proj").value;
+  const proj=projs.find(p=>p.id===pid);
+  // sum tracked hours for this project (or whole company if none) over last 30 days
+  const from=new Date();from.setDate(from.getDate()-30);from.setHours(0,0,0,0);
+  let q=sb.from("time_entries").select("duration_sec,project_id").eq("company_id",cid()).gte("started_at",from.toISOString());
+  const {data:ents}=await q;
+  const sec=(ents||[]).filter(e=>pid?e.project_id===pid:true).reduce((s,e)=>s+(e.duration_sec||0),0);
+  const hours=Math.round(hrs(sec)*100)/100;
+  if(hours<=0){const m=document.getElementById("invmsg");m.innerHTML=`<div class="msg err">No tracked time in the last 30 days${pid?' for this project':''} yet.</div>`;return;}
+  const rate=proj&&proj.bill_rate?Number(proj.bill_rate):0;
+  const label=(proj?proj.name:"Tracked work")+" — last 30 days";
+  if(_invItems.length===1&&!_invItems[0].description&&!_invItems[0].rate)_invItems=[];
+  _invItems.push({description:label,qty:hours,rate:rate});
+  renderInvItems();
+  if(!rate){const m=document.getElementById("invmsg");m.innerHTML=`<div class="msg" style="background:var(--warn-soft);color:var(--warn)">Added ${hours}h. Set a rate — tip: add a billable rate to the project so it fills in automatically.</div>`;}
+}
+async function saveInvoice(){
+  const client=document.getElementById("iv_client").value.trim();
+  if(!client){document.getElementById("invmsg").innerHTML=`<div class="msg err">Enter a client name.</div>`;return;}
+  const items=_invItems.filter(it=>(it.description||"").trim()||it.qty||it.rate).map((it,i)=>({description:(it.description||"Item").trim(),qty:it.qty||0,rate:it.rate||0,amount:Math.round((it.qty||0)*(it.rate||0)*100)/100,sort:i}));
+  if(!items.length){document.getElementById("invmsg").innerHTML=`<div class="msg err">Add at least one line item.</div>`;return;}
+  const subtotal=items.reduce((s,it)=>s+it.amount,0);
+  const taxPct=parseFloat(document.getElementById("iv_tax").value)||0;
+  const total=Math.round((subtotal*(1+taxPct/100))*100)/100;
+  const {count}=await sb.from("client_invoices").select("*",{count:"exact",head:true}).eq("company_id",cid());
+  const number="INV-"+new Date().getFullYear()+"-"+String((count||0)+1).padStart(4,"0");
+  const btn=document.getElementById("iv_save");btn.disabled=true;btn.textContent="Creating…";
+  const {data:inv,error}=await sb.from("client_invoices").insert({
+    company_id:cid(),number,client_name:client,project_id:document.getElementById("iv_proj").value||null,
+    status:"draft",issued_on:document.getElementById("iv_issue").value||todayISODate(),due_on:document.getElementById("iv_due").value||null,
+    subtotal,tax_pct:taxPct,total,notes:document.getElementById("iv_notes").value.trim()||null,created_by:state.user.id
+  }).select().single();
+  if(error){btn.disabled=false;btn.textContent="Create invoice";document.getElementById("invmsg").innerHTML=`<div class="msg err">${esc(error.message)}</div>`;return;}
+  const rows=items.map(it=>({...it,company_id:cid(),invoice_id:inv.id}));
+  await sb.from("client_invoice_items").insert(rows);
+  _closeModal();loadView("finance");setTimeout(()=>openInvoice(inv.id),120);
+}
+async function openInvoice(id){
+  const [{data:i},{data:items},{data:pays}]=await Promise.all([
+    sb.from("client_invoices").select("*").eq("id",id).single(),
+    sb.from("client_invoice_items").select("*").eq("invoice_id",id).order("sort"),
+    sb.from("client_payments").select("*").eq("invoice_id",id).order("received_on")
+  ]);
+  const paid=(pays||[]).reduce((s,p)=>s+Number(p.amount||0),0);
+  const bal=Math.max(0,Number(i.total||0)-paid);
+  showModal(`<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+      <div><div style="font-family:var(--fh);font-size:18px;font-weight:600">Invoice ${esc(i.number)}</div>
+      <div class="muted" style="font-size:13px">${esc(i.client_name)} · issued ${fmtDate(i.issued_on)}${i.due_on?` · due ${fmtDate(i.due_on)}`:''}</div></div>
+      <span class="pill ${invStatusPill(i.status)}">${esc(i.status)}</span></div>
+    <div style="overflow-x:auto;margin-top:12px"><table><thead><tr><th>Description</th><th class="tnum" style="text-align:right">Qty</th><th class="tnum" style="text-align:right">Rate</th><th class="tnum" style="text-align:right">Amount</th></tr></thead><tbody>
+      ${(items||[]).map(it=>`<tr><td>${esc(it.description)}</td><td class="tnum" style="text-align:right">${Number(it.qty)}</td><td class="tnum" style="text-align:right">${money(it.rate)}</td><td class="tnum" style="text-align:right;font-weight:600">${money(it.amount)}</td></tr>`).join("")}
+    </tbody></table></div>
+    <div class="card" style="padding:12px 14px;background:var(--surface-2);box-shadow:none;margin-top:10px">
+      <div style="display:flex;justify-content:space-between;padding:2px 0"><span class="muted">Subtotal</span><span class="tnum">${money(i.subtotal)}</span></div>
+      ${Number(i.tax_pct)?`<div style="display:flex;justify-content:space-between;padding:2px 0"><span class="muted">Tax (${Number(i.tax_pct)}%)</span><span class="tnum">${money(Number(i.total)-Number(i.subtotal))}</span></div>`:''}
+      <div style="display:flex;justify-content:space-between;padding:6px 0 0;border-top:1px solid var(--border);margin-top:4px"><span style="font-weight:600">Total</span><span class="tnum" style="font-weight:700">${money(i.total)}</span></div>
+      ${paid?`<div style="display:flex;justify-content:space-between;padding:4px 0 0"><span class="muted">Paid</span><span class="tnum" style="color:var(--good)">−${money(paid)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:2px 0"><span style="font-weight:600">Balance due</span><span class="tnum" style="font-weight:700">${money(bal)}</span></div>`:''}
+    </div>
+    ${i.notes?`<p class="hint" style="margin-top:8px">${esc(i.notes)}</p>`:''}
+    <div class="row" style="justify-content:space-between;margin-top:14px;flex-wrap:wrap;gap:8px">
+      <button class="btn ghost sm" id="iv_del">Delete</button>
+      <div class="row" style="gap:8px">
+        ${i.status==='draft'?`<button class="btn sm" id="iv_send">Mark as sent</button>`:''}
+        ${i.status!=='paid'&&i.status!=='void'?`<button class="btn sm" id="iv_pay">Record payment</button>`:''}
+        ${i.status!=='paid'&&i.status!=='void'?`<button class="btn acc sm" id="iv_markpaid">Mark fully paid</button>`:''}
+        <button class="btn" onclick="window._closeModal()">Close</button>
+      </div></div>`);
+  const on=(id2,fn)=>{const el=document.getElementById(id2);if(el)el.onclick=fn;};
+  on("iv_send",async()=>{await sb.from("client_invoices").update({status:"sent"}).eq("id",i.id);_closeModal();loadView("finance");});
+  on("iv_markpaid",async()=>{await sb.from("client_invoices").update({status:"paid",paid_on:todayISODate()}).eq("id",i.id);_closeModal();loadView("finance");});
+  on("iv_pay",()=>{_closeModal();newPayment(i.id,bal||i.total);});
+  on("iv_del",async()=>{if(!window.__confirmDel){window.__confirmDel=true;document.getElementById("iv_del").textContent="Click again to delete";setTimeout(()=>window.__confirmDel=false,2500);return;}await sb.from("client_invoices").delete().eq("id",i.id);window.__confirmDel=false;_closeModal();loadView("finance");});
+}
+
+/* ---------- Payments ---------- */
+async function finPayments(body){
+  const [{data:pays},{data:invs}]=await Promise.all([
+    sb.from("client_payments").select("*").eq("company_id",cid()).order("received_on",{ascending:false}),
+    sb.from("client_invoices").select("id,number,client_name").eq("company_id",cid())
+  ]);
+  const invMap={};(invs||[]).forEach(i=>invMap[i.id]=i);
+  const list=pays||[];
+  const total=list.reduce((s,p)=>s+Number(p.amount||0),0);
+  body.innerHTML=`
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+     <div class="card stat"><div class="k">Received (all time)</div><div class="v tnum">${money(total)}</div><div class="sub">${list.length} payment(s)</div></div>
+   </div>
+   <div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Payments received</h3></div>
+   ${list.length?`<div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Invoice</th><th>Client</th><th>Method</th><th>Reference</th><th class="tnum" style="text-align:right">Amount</th><th></th></tr></thead><tbody>
+     ${list.map(p=>{const inv=invMap[p.invoice_id];return `<tr><td>${fmtDate(p.received_on)}</td><td class="tnum">${inv?esc(inv.number):'<span class="faint">—</span>'}</td>
+       <td>${inv?esc(inv.client_name):'<span class="faint">—</span>'}</td><td>${p.method?esc(p.method):'<span class="faint">—</span>'}</td>
+       <td>${p.reference?esc(p.reference):'<span class="faint">—</span>'}</td><td class="tnum" style="text-align:right;font-weight:600">${money(p.amount)}</td>
+       <td style="text-align:right"><button class="btn ghost sm" data-delp="${p.id}">✕</button></td></tr>`;}).join("")}
+     </tbody></table></div>`:`<div class="empty">No payments recorded yet.</div>`}</div>`;
+  body.querySelectorAll("[data-delp]").forEach(b=>b.onclick=async()=>{b.disabled=true;await sb.from("client_payments").delete().eq("id",b.dataset.delp);loadView("finance");});
+}
+async function newPayment(preInv,preAmt){
+  const {data:invs}=await sb.from("client_invoices").select("id,number,client_name,total,status").eq("company_id",cid()).neq("status","void").order("issued_on",{ascending:false});
+  const opts=`<option value="">— Not linked to an invoice —</option>`+(invs||[]).map(i=>`<option value="${i.id}" ${preInv===i.id?'selected':''}>${esc(i.number)} · ${esc(i.client_name)} · ${money(i.total)}</option>`).join("");
+  showModal(`<h3 style="margin-bottom:14px">Record a payment</h3>
+    <div id="paymsg"></div>
+    <div class="field"><label>Invoice</label><select id="pm_inv">${opts}</select></div>
+    <div class="row" style="gap:10px;flex-wrap:wrap">
+      <div class="field" style="flex:1;min-width:120px"><label>Amount</label><input id="pm_amt" type="number" step="0.01" min="0" value="${preAmt!=null?Number(preAmt).toFixed(2):''}" placeholder="0.00"></div>
+      <div class="field" style="flex:1;min-width:120px"><label>Date received</label><input id="pm_date" type="date" value="${todayISODate()}"></div>
+    </div>
+    <div class="row" style="gap:10px;flex-wrap:wrap">
+      <div class="field" style="flex:1;min-width:120px"><label>Method</label><select id="pm_method"><option value="">—</option><option>Transfer</option><option>Cash</option><option>Card</option><option>Cheque</option><option>Online</option><option>Other</option></select></div>
+      <div class="field" style="flex:1;min-width:120px"><label>Reference (optional)</label><input id="pm_ref" placeholder="e.g. txn id"></div>
+    </div>
+    <div class="field"><label>Note (optional)</label><input id="pm_note"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" onclick="window._closeModal()">Cancel</button><button class="btn pri" id="pm_save">Save payment</button></div>`);
+  document.getElementById("pm_save").onclick=async()=>{
+    const amt=parseFloat(document.getElementById("pm_amt").value);
+    if(!(amt>0)){document.getElementById("paymsg").innerHTML=`<div class="msg err">Enter an amount.</div>`;return;}
+    const invId=document.getElementById("pm_inv").value||null;
+    const {error}=await sb.from("client_payments").insert({company_id:cid(),invoice_id:invId,amount:amt,received_on:document.getElementById("pm_date").value||todayISODate(),method:document.getElementById("pm_method").value||null,reference:document.getElementById("pm_ref").value.trim()||null,note:document.getElementById("pm_note").value.trim()||null,created_by:state.user.id});
+    if(error){document.getElementById("paymsg").innerHTML=`<div class="msg err">${esc(error.message)}</div>`;return;}
+    // auto-mark invoice paid if fully covered
+    if(invId){const {data:inv}=await sb.from("client_invoices").select("total,status").eq("id",invId).single();
+      const {data:ps}=await sb.from("client_payments").select("amount").eq("invoice_id",invId);
+      const sum=(ps||[]).reduce((s,p)=>s+Number(p.amount||0),0);
+      if(inv&&sum>=Number(inv.total)-0.001&&inv.status!=='paid')await sb.from("client_invoices").update({status:"paid",paid_on:todayISODate()}).eq("id",invId);}
+    _closeModal();loadView("finance");
+  };
+}
+
+/* ---------- Payroll ---------- */
+async function finPayroll(body){
+  const {data:runs}=await sb.from("payroll_runs").select("*").eq("company_id",cid()).order("period_start",{ascending:false});
+  const list=runs||[];
+  body.innerHTML=`
+   <div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Payroll runs</h3><span class="pill muted">${list.length}</span></div>
+   ${list.length?`<div style="overflow-x:auto"><table><thead><tr><th>Period</th><th>Status</th><th class="tnum" style="text-align:right">Total</th><th></th></tr></thead><tbody>
+     ${list.map(r=>`<tr><td>${fmtDate(r.period_start)} – ${fmtDate(r.period_end)}</td><td><span class="pill ${r.status==='paid'?'good':r.status==='finalized'?'warn':'muted'}">${esc(r.status)}</span></td>
+       <td class="tnum" style="text-align:right;font-weight:600">${money(r.total)}</td><td style="text-align:right"><button class="btn ghost sm" data-run="${r.id}">Open</button></td></tr>`).join("")}
+     </tbody></table></div>`:`<div class="empty">${ICON.team}<div>No payroll runs yet. Create one from tracked hours.</div></div>`}</div>
+   <p class="hint" style="padding:0 2px">Set each member's pay rate in <b>Team → Edit</b> (hourly rate) or mark them fixed-salary. Payroll pulls tracked hours for the period automatically.</p>`;
+  body.querySelectorAll("[data-run]").forEach(b=>b.onclick=()=>openPayrollRun(b.dataset.run));
+}
+async function newPayroll(){
+  const now=new Date();
+  const mStart=new Date(now.getFullYear(),now.getMonth(),1).toISOString().slice(0,10);
+  const mEnd=new Date(now.getFullYear(),now.getMonth()+1,0).toISOString().slice(0,10);
+  showModal(`<h3 style="margin-bottom:4px">New payroll run</h3>
+    <p class="muted" style="margin:0 0 14px">Pick a period — we'll pull each member's tracked hours and pay rate.</p>
+    <div id="prmsg"></div>
+    <div class="row" style="gap:10px;flex-wrap:wrap">
+      <div class="field" style="flex:1;min-width:130px"><label>Period start</label><input id="pr_start" type="date" value="${mStart}"></div>
+      <div class="field" style="flex:1;min-width:130px"><label>Period end</label><input id="pr_end" type="date" value="${mEnd}"></div>
+    </div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" onclick="window._closeModal()">Cancel</button><button class="btn pri" id="pr_gen">Generate</button></div>`);
+  document.getElementById("pr_gen").onclick=async()=>{
+    const start=document.getElementById("pr_start").value,end=document.getElementById("pr_end").value;
+    if(!start||!end){document.getElementById("prmsg").innerHTML=`<div class="msg err">Pick both dates.</div>`;return;}
+    const btn=document.getElementById("pr_gen");btn.disabled=true;btn.textContent="Generating…";
+    const fromISO=new Date(start+"T00:00:00").toISOString();
+    const toISO=new Date(end+"T23:59:59").toISOString();
+    const [{data:mems},{data:ents}]=await Promise.all([
+      sb.from("memberships").select("user_id,hourly_rate,pay_type,monthly_pay").eq("company_id",cid()).eq("status","active"),
+      sb.from("time_entries").select("user_id,duration_sec").eq("company_id",cid()).gte("started_at",fromISO).lte("started_at",toISO)
+    ]);
+    const secBy={};(ents||[]).forEach(e=>{secBy[e.user_id]=(secBy[e.user_id]||0)+(e.duration_sec||0);});
+    const items=(mems||[]).map(m=>{const fixed=m.pay_type==='fixed';const hours=Math.round(hrs(secBy[m.user_id]||0)*100)/100;
+      const rate=Number(m.hourly_rate||0);const gross=fixed?Number(m.monthly_pay||0):Math.round(hours*rate*100)/100;
+      return {user_id:m.user_id,pay_type:fixed?'fixed':'hourly',hours,rate,gross};});
+    const total=items.reduce((s,it)=>s+it.gross,0);
+    const {data:run,error}=await sb.from("payroll_runs").insert({company_id:cid(),period_start:start,period_end:end,status:"draft",total,created_by:state.user.id}).select().single();
+    if(error){btn.disabled=false;btn.textContent="Generate";document.getElementById("prmsg").innerHTML=`<div class="msg err">${esc(error.message)}</div>`;return;}
+    await sb.from("payroll_items").insert(items.map(it=>({...it,company_id:cid(),run_id:run.id})));
+    _closeModal();loadView("finance");setTimeout(()=>openPayrollRun(run.id),120);
+  };
+}
+async function openPayrollRun(id){
+  const [{data:run},{data:items}]=await Promise.all([
+    sb.from("payroll_runs").select("*").eq("id",id).single(),
+    sb.from("payroll_items").select("*").eq("run_id",id)
+  ]);
+  const pm=await profilesMap((items||[]).map(it=>it.user_id));
+  const nameOf=u=>pm[u]||(u===state.user.id?(state.user.user_metadata?.full_name||"You"):"Member");
+  const rows=(items||[]).slice().sort((a,b)=>b.gross-a.gross);
+  showModal(`<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+      <div><div style="font-family:var(--fh);font-size:18px;font-weight:600">Payroll</div>
+      <div class="muted" style="font-size:13px">${fmtDate(run.period_start)} – ${fmtDate(run.period_end)}</div></div>
+      <span class="pill ${run.status==='paid'?'good':run.status==='finalized'?'warn':'muted'}">${esc(run.status)}</span></div>
+    <div style="overflow-x:auto;margin-top:12px"><table><thead><tr><th>Member</th><th>Type</th><th class="tnum" style="text-align:right">Hours</th><th class="tnum" style="text-align:right">Rate</th><th class="tnum" style="text-align:right">Gross</th></tr></thead><tbody>
+      ${rows.map(it=>`<tr><td><div style="display:flex;align-items:center;gap:8px"><div class="avatar" style="width:24px;height:24px;font-size:10px">${esc(initials(nameOf(it.user_id)))}</div>${esc(nameOf(it.user_id))}</div></td>
+        <td>${it.pay_type==='fixed'?'Fixed':'Hourly'}</td><td class="tnum" style="text-align:right">${it.pay_type==='fixed'?'—':Number(it.hours)}</td>
+        <td class="tnum" style="text-align:right">${it.pay_type==='fixed'?'—':money(it.rate)}</td><td class="tnum" style="text-align:right;font-weight:600">${money(it.gross)}</td></tr>`).join("")}
+    </tbody><tfoot><tr><td colspan="4" style="text-align:right;font-weight:600">Total</td><td class="tnum" style="text-align:right;font-weight:700;font-family:var(--fh)">${money(run.total)}</td></tr></tfoot></table></div>
+    <div class="row" style="justify-content:space-between;margin-top:14px;flex-wrap:wrap;gap:8px">
+      <div class="row" style="gap:8px"><button class="btn ghost sm" id="pr_csv">Export CSV</button><button class="btn ghost sm" id="pr_del">Delete</button></div>
+      <div class="row" style="gap:8px">
+        ${run.status==='draft'?`<button class="btn sm" id="pr_final">Finalize</button>`:''}
+        ${run.status!=='paid'?`<button class="btn acc sm" id="pr_paid">Mark paid</button>`:''}
+        <button class="btn" onclick="window._closeModal()">Close</button></div></div>`);
+  const on=(id2,fn)=>{const el=document.getElementById(id2);if(el)el.onclick=fn;};
+  on("pr_final",async()=>{await sb.from("payroll_runs").update({status:"finalized"}).eq("id",run.id);_closeModal();loadView("finance");});
+  on("pr_paid",async()=>{await sb.from("payroll_runs").update({status:"paid"}).eq("id",run.id);_closeModal();loadView("finance");});
+  on("pr_del",async()=>{if(!window.__confirmDelPr){window.__confirmDelPr=true;document.getElementById("pr_del").textContent="Click again to delete";setTimeout(()=>window.__confirmDelPr=false,2500);return;}await sb.from("payroll_runs").delete().eq("id",run.id);window.__confirmDelPr=false;_closeModal();loadView("finance");});
+  on("pr_csv",()=>downloadCsv(`payroll-${run.period_start}.csv`,[["Member","Type","Hours","Rate","Gross"]].concat(rows.map(it=>[nameOf(it.user_id),it.pay_type,it.pay_type==='fixed'?'':Number(it.hours),it.pay_type==='fixed'?'':Number(it.rate),Number(it.gross).toFixed(2)])).concat([[],["Total","","","",Number(run.total).toFixed(2)]])));
 }
 
 /* =================== SETTINGS =================== */
