@@ -192,6 +192,7 @@ const IC_TRASH='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 const IC_ARCH='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v12h14V8M10 12h4"/></svg>';
 const IC_UNARCH='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v12h14V8M12 18v-6M9 15l3-3 3 3"/></svg>';
 const IC_MAIL='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>';
+const IC_USERS='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M16 5.2a3.2 3.2 0 0 1 0 6M18 20a5.5 5.5 0 0 0-3-5"/></svg>';
 const IC_OFF='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5"/></svg>';
 const esc=s=>(s==null?"":String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtDur=sec=>{sec=Math.max(0,Math.floor(sec||0));const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;return h>0?`${h}h ${String(m).padStart(2,'0')}m`:`${m}m ${String(s).padStart(2,'0')}s`;};
@@ -709,17 +710,26 @@ async function viewProjects(){
   if(isMgr()) app.querySelector("#topright").innerHTML=`<button class="btn pri sm" id="npbtn">+ Project</button>`;
   const {data:projs}=await sb.from("projects").select("*").eq("company_id",cid()).order("created_at",{ascending:false});
   const {data:tasks}=await sb.from("tasks").select("*").eq("company_id",cid()).order("created_at",{ascending:false});
+  const [{data:pmRows},{data:pmems}]=await Promise.all([
+    sb.from("project_members").select("project_id,user_id").eq("company_id",cid()),
+    sb.from("memberships").select("user_id,role").eq("company_id",cid()).eq("status","active")
+  ]);
+  const assignBy={}; (pmRows||[]).forEach(r=>{(assignBy[r.project_id]=assignBy[r.project_id]||[]).push(r.user_id);});
+  const ppm=await profilesMap((pmems||[]).map(m=>m.user_id));
+  const pNameOf=u=>ppm[u]||(u===state.user.id?"You":"Member");
   const tByP={}; (tasks||[]).forEach(t=>{(tByP[t.project_id||"none"]=tByP[t.project_id||"none"]||[]).push(t);});
   if(isMgr())app.querySelector("#npbtn").onclick=projectModal;
   const c=content();
   if(!projs||!projs.length){c.innerHTML=`<div class="card"><div class="empty">${ICON.projects}<div>No projects yet.${isMgr()?' Create your first one.':''}</div></div></div>`;return;}
-  c.innerHTML=projs.map(p=>{const ts=tByP[p.id]||[];const done=ts.filter(t=>t.status==='done').length;
+  c.innerHTML=projs.map(p=>{const ts=tByP[p.id]||[];const done=ts.filter(t=>t.status==='done').length;const asg=assignBy[p.id]||[];
+    const stack=asg.length?`<div style="display:flex;align-items:center" title="${esc(asg.map(pNameOf).join(', '))}">${asg.slice(0,4).map((u,i)=>`<div class="avatar" style="width:24px;height:24px;font-size:10px;border:2px solid var(--surface);${i?'margin-left:-8px':''}">${esc(initials(pNameOf(u)))}</div>`).join("")}${asg.length>4?`<span class="pill muted" style="margin-left:4px">+${asg.length-4}</span>`:''}</div>`:'<span class="faint" style="font-size:12.5px">No one assigned</span>';
     return `<div class="card" style="padding:16px 18px${p.archived?';opacity:.62':''}">
       <div class="sec-head"><div style="display:flex;align-items:center;gap:9px">
         <span style="width:11px;height:11px;border-radius:3px;background:${p.color||'var(--primary)'}"></span>
         <h3>${esc(p.name)}</h3>${p.client?`<span class="pill muted">${esc(p.client)}</span>`:''}${p.archived?'<span class="pill muted">Archived</span>':''}</div>
         <div class="row">${ts.length?`<span class="pill muted">${done}/${ts.length} done</span>`:''}
         ${isMgr()?`<button class="btn ghost sm" data-nt="${p.id}">+ Task</button><button class="kebab" data-ppid="${p.id}" title="Actions">${DOTS}</button>`:''}</div></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px"><span class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Team</span>${stack}</div>
       ${ts.length?`<div style="margin-top:10px;display:flex;flex-direction:column;gap:6px">
         ${ts.map(t=>`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--border)">
           <button class="task-check" data-tog="${t.id}" data-st="${t.status}" style="width:18px;height:18px;border-radius:5px;border:1.5px solid ${t.status==='done'?'var(--accent)':'var(--faint)'};background:${t.status==='done'?'var(--accent)':'transparent'};color:#fff;display:grid;place-items:center;padding:0">${t.status==='done'?'<svg width=11 height=11 viewBox="0 0 24 24" fill=none stroke=currentColor stroke-width=4><path d="M20 6 9 17l-5-5"/></svg>':''}</button>
@@ -733,6 +743,7 @@ async function viewProjects(){
     const p=(projs||[]).find(x=>x.id===b.dataset.ppid);if(!p)return;
     popMenu(b,[
       {label:"Edit project",icon:IC_PENCIL,on:()=>projectEditModal(p)},
+      {label:"Assign members",icon:IC_USERS,on:()=>projectAssignModal(p,pmems||[],assignBy[p.id]||[],pNameOf)},
       p.archived
         ? {label:"Unarchive",icon:IC_UNARCH,on:async()=>{await sb.from("projects").update({archived:false}).eq("id",p.id);loadView("projects");}}
         : {label:"Archive",icon:IC_ARCH,on:async()=>{await sb.from("projects").update({archived:true}).eq("id",p.id);loadView("projects");}},
@@ -751,6 +762,38 @@ function projectEditModal(p){
     const name=document.getElementById("p_name").value.trim();if(!name){alert2("Name required.");return;}
     const {error}=await sb.from("projects").update({name,client:document.getElementById("p_client").value.trim()||null,color:document.getElementById("p_color").value}).eq("id",p.id);
     if(error){alert2(error.message);return;}_closeModal();loadView("projects");
+  };
+}
+// Assign / unassign team members to a project.
+function projectAssignModal(p,members,current,nameOf){
+  const cur=new Set(current);
+  const rows=(members||[]).slice().sort((a,b)=>nameOf(a.user_id).localeCompare(nameOf(b.user_id)));
+  showModal(`<h3 style="margin-bottom:4px">Assign members</h3>
+    <p class="muted" style="margin:0 0 14px">Pick who works on “${esc(p.name)}”.</p>
+    <div id="pa_msg"></div>
+    <div style="display:flex;flex-direction:column;gap:2px;max-height:min(50vh,340px);overflow:auto;margin:-4px -4px 10px;padding:4px">
+      ${rows.length?rows.map(m=>`<label style="display:flex;align-items:center;gap:10px;padding:8px 8px;border-radius:9px;cursor:pointer" class="pa_row">
+        <input type="checkbox" class="pa_chk" value="${m.user_id}" ${cur.has(m.user_id)?'checked':''} style="width:17px;height:17px;flex:none;cursor:pointer">
+        <div class="avatar" style="width:28px;height:28px;font-size:11px">${esc(initials(nameOf(m.user_id)))}</div>
+        <div style="flex:1;min-width:0"><div style="font-weight:600">${esc(nameOf(m.user_id))}</div><div class="muted" style="font-size:12px">${esc(m.role)}</div></div>
+      </label>`).join(""):`<div class="empty">No active members to assign yet.</div>`}
+    </div>
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <button class="btn ghost sm" id="pa_all" type="button">Select all</button>
+      <div class="row"><button class="btn" onclick="window._closeModal()">Cancel</button><button class="btn pri" id="pa_save">Save</button></div>
+    </div>`);
+  const chks=()=>Array.from(document.querySelectorAll(".pa_chk"));
+  document.getElementById("pa_all").onclick=()=>{const all=chks().every(c=>c.checked);chks().forEach(c=>c.checked=!all);document.getElementById("pa_all").textContent=all?"Select all":"Clear all";};
+  document.getElementById("pa_save").onclick=async()=>{
+    const want=new Set(chks().filter(c=>c.checked).map(c=>c.value));
+    const toAdd=[...want].filter(u=>!cur.has(u));
+    const toDel=[...cur].filter(u=>!want.has(u));
+    const btn=document.getElementById("pa_save");btn.disabled=true;btn.textContent="Saving…";
+    try{
+      if(toAdd.length){const {error}=await sb.from("project_members").insert(toAdd.map(u=>({company_id:cid(),project_id:p.id,user_id:u})));if(error)throw error;}
+      if(toDel.length){const {error}=await sb.from("project_members").delete().eq("project_id",p.id).in("user_id",toDel);if(error)throw error;}
+    }catch(e){document.getElementById("pa_msg").innerHTML=`<div class="msg err">${esc(e.message||"Couldn't save.")}</div>`;btn.disabled=false;btn.textContent="Save";return;}
+    _closeModal();loadView("projects");
   };
 }
 function projectModal(){
