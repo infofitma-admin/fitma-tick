@@ -110,6 +110,15 @@ function render(d,email){
      <div class="card stat"><div class="k">On time</div><div class="v">${onTime}</div><div class="s">of ${graded.length} days</div></div>
      <div class="card stat"><div class="k">Punctuality</div><div class="v">${punctPct==null?'—':punctPct+'%'}</div><div class="s">${late?late+' late day(s)':(punctPct==null?'—':'perfect!')}</div></div>
    </div>
+   ${(d.performance&&d.performance.length)?`<div class="card" style="margin-bottom:14px">
+     <div class="sec-head"><h3>My monthly performance</h3></div>
+     <div style="padding:0 16px 16px">
+     ${d.performance.map(p=>{const mn=new Date(p.period+"-01T00:00:00").toLocaleDateString(undefined,{month:'long',year:'numeric'});
+       const sc=(label,v)=>`<div style="flex:1;min-width:90px"><div class="k" style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600">${label}</div><div style="font-family:var(--fh);font-size:22px;font-weight:700">${v==null?'—':v+'<span style="font-size:13px;color:var(--faint)">/10</span>'}</div></div>`;
+       return `<div style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px"><div style="font-weight:600;margin-bottom:8px">${esc(mn)}</div>
+         <div style="display:flex;gap:12px;flex-wrap:wrap">${sc('Project mgmt',p.project_mgmt)}${sc('Time mgmt',p.time_mgmt)}${sc('Eager to learn',p.eager_to_learn)}</div>
+         ${p.notes?`<p class="muted" style="font-size:13px;margin:10px 0 0">${esc(p.notes)}</p>`:''}</div>`;}).join("")}
+     </div></div>`:''}
    <div class="card">
      <div class="sec-head"><h3>Daily attendance</h3></div>
      <div style="overflow-x:auto"><table><thead><tr><th>Day</th><th>Start</th><th>Status</th><th>Activity</th></tr></thead><tbody>

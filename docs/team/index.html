@@ -60,6 +60,9 @@ th.n{text-align:right}
 .err{color:var(--crit);font-size:13px;margin-top:8px}
 .foot{color:var(--faint);font-size:12px;margin-top:16px;text-align:center}
 .chip{font-size:11px;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);border-radius:999px;padding:3px 10px}
+.k2{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-bottom:3px}
+select,input[type=number],input[type=month],textarea{font-family:var(--ff);font-size:14px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--fg);width:100%;box-sizing:border-box}
+.scorechip{display:inline-flex;align-items:center;gap:4px;font-size:12px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:3px 8px;margin:2px}
 </style>
 </head>
 <body>
@@ -79,6 +82,7 @@ const SB_URL="https://adyqhpqugdlksqzpscwm.supabase.co";
 const SB_KEY="sb_publishable_l3HBtg1KUO6nBZkwxXqQvw_9uPyXSRz";
 const sb=supabase.createClient(SB_URL,SB_KEY);
 const app=document.getElementById("app");
+let adminPin=null;
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const initials=n=>(n||"?").split(/\s+/).map(w=>w[0]).join("").slice(0,2).toUpperCase();
 const fmtH=m=>{m=Math.max(0,Math.round(m||0));const h=Math.floor(m/60),mm=m%60;return h+"h"+(mm?" "+mm+"m":"");};
@@ -96,6 +100,7 @@ function gate(){
   if(saved)load(saved);
 }
 async function load(pin){
+  adminPin=pin;
   app.innerHTML=`<div class="sub">Loading real data from WebWork…</div>`;
   const {data,error}=await sb.rpc("fitma_team_report",{p_pin:pin});
   if(error||!data||data.error){
@@ -149,7 +154,29 @@ function render(d){
        <th>Member</th><th class="n">Hours</th><th class="n">Avg/day</th><th class="n">Activity</th><th class="n">Days</th><th class="n">Late</th><th>Last seen</th>
      </tr></thead><tbody id="rows"></tbody></table></div>
    </div>
+   <div class="card" id="perfcard">
+     <div class="sec-head"><h3>Monthly performance</h3><span class="chip">scores out of 10</span></div>
+     <div style="padding:0 16px 16px">
+       <div class="row" style="display:flex;gap:10px;flex-wrap:wrap">
+         <label style="flex:1;min-width:150px"><div class="k2">Member</div><select id="pf_mem"></select></label>
+         <label style="width:150px"><div class="k2">Month</div><input id="pf_month" type="month"></label>
+       </div>
+       <div class="row" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+         <label style="flex:1;min-width:110px"><div class="k2">Project mgmt</div><input id="pf_pm" type="number" min="0" max="10" step="1"></label>
+         <label style="flex:1;min-width:110px"><div class="k2">Time mgmt</div><input id="pf_tm" type="number" min="0" max="10" step="1"></label>
+         <label style="flex:1;min-width:110px"><div class="k2">Eager to learn</div><input id="pf_el" type="number" min="0" max="10" step="1"></label>
+       </div>
+       <label style="display:block;margin-top:8px"><div class="k2">Notes (shown to the employee)</div><textarea id="pf_notes" rows="2" style="width:100%"></textarea></label>
+       <div style="display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap">
+         <label style="display:flex;align-items:center;gap:7px;font-size:13px"><input id="pf_pub" type="checkbox"> Published (employee can see it after the month ends)</label>
+         <button class="btn" id="pf_save" style="margin-left:auto">Save score</button>
+       </div>
+       <div id="pf_msg" class="muted" style="font-size:13px;margin-top:8px"></div>
+       <div id="pf_existing" style="margin-top:12px"></div>
+     </div>
+   </div>
    <div class="foot">Fitma Tick · internal team dashboard · data synced from WebWork Tracker</div>`;
+  setupPerf(members, d.performance||[]);
   const tb=document.getElementById("rows");
   people.forEach((p,idx)=>{
     const target=p.m.target_minutes;
@@ -180,6 +207,47 @@ function render(d){
     tb.appendChild(tr);tb.appendChild(det);
   });
   document.getElementById("logout").onclick=e=>{e.preventDefault();try{localStorage.removeItem("fitma_pin")}catch(x){}location.reload();};
+}
+function setupPerf(members, perf){
+  const sel=document.getElementById("pf_mem");
+  const roster=members.filter(m=>m.role!=='admin');
+  sel.innerHTML=roster.map(m=>`<option value="${m.webwork_id}">${esc(m.name)}</option>`).join("");
+  const now=new Date(); const lm=new Date(now.getFullYear(),now.getMonth()-1,1);
+  const lmStr=lm.getFullYear()+"-"+String(lm.getMonth()+1).padStart(2,"0");
+  document.getElementById("pf_month").value=lmStr;
+  const byKey={}; perf.forEach(p=>byKey[p.webwork_id+"|"+p.period]=p);
+  const nameOf=id=>{const m=roster.find(x=>String(x.webwork_id)===String(id));return m?m.name:id;};
+  function prefill(){
+    const k=sel.value+"|"+document.getElementById("pf_month").value; const p=byKey[k];
+    document.getElementById("pf_pm").value=p?(p.project_mgmt??''):'';
+    document.getElementById("pf_tm").value=p?(p.time_mgmt??''):'';
+    document.getElementById("pf_el").value=p?(p.eager_to_learn??''):'';
+    document.getElementById("pf_notes").value=p?(p.notes||''):'';
+    document.getElementById("pf_pub").checked=p?!!p.published:false;
+  }
+  sel.onchange=prefill; document.getElementById("pf_month").onchange=prefill; prefill();
+  function renderExisting(){
+    const el=document.getElementById("pf_existing");
+    const rows=perf.slice().sort((a,b)=>a.period<b.period?1:-1);
+    el.innerHTML=rows.length?`<div class="k2" style="margin-bottom:6px">Saved scores</div><div style="overflow-x:auto"><table><thead><tr><th>Member</th><th>Month</th><th class="n">PM</th><th class="n">TM</th><th class="n">EL</th><th>Status</th></tr></thead><tbody>
+      ${rows.map(p=>`<tr><td>${esc(nameOf(p.webwork_id))}</td><td>${esc(p.period)}</td><td class="n">${p.project_mgmt??'—'}</td><td class="n">${p.time_mgmt??'—'}</td><td class="n">${p.eager_to_learn??'—'}</td><td>${p.published?'<span class="pill good">published</span>':'<span class="pill muted">draft</span>'}</td></tr>`).join("")}
+      </tbody></table></div>`:'';
+  }
+  renderExisting();
+  document.getElementById("pf_save").onclick=async()=>{
+    const msg=document.getElementById("pf_msg");
+    const g=id=>{const v=document.getElementById(id).value;return v===''?null:Math.max(0,Math.min(10,Math.round(+v)));};
+    const payload={p_pin:adminPin,p_webwork_id:Number(sel.value),p_period:document.getElementById("pf_month").value,
+      p_pm:g("pf_pm"),p_tm:g("pf_tm"),p_eager:g("pf_el"),p_notes:document.getElementById("pf_notes").value.trim()||null,p_published:document.getElementById("pf_pub").checked};
+    if(!payload.p_period){msg.textContent="Pick a month.";return;}
+    msg.textContent="Saving…";
+    const {data,error}=await sb.rpc("fitma_set_score",payload);
+    if(error||!data||data.error){msg.innerHTML='<span style="color:var(--crit)">Could not save. '+esc(error?error.message:(data&&data.error||''))+'</span>';return;}
+    const k=sel.value+"|"+payload.p_period;
+    const rec={webwork_id:Number(sel.value),period:payload.p_period,project_mgmt:payload.p_pm,time_mgmt:payload.p_tm,eager_to_learn:payload.p_eager,notes:payload.p_notes,published:payload.p_published};
+    byKey[k]=rec; const i=perf.findIndex(x=>x.webwork_id===rec.webwork_id&&x.period===rec.period); if(i>=0)perf[i]=rec; else perf.push(rec);
+    msg.innerHTML='<span style="color:var(--good)">Saved ✓</span>'; renderExisting();
+  };
 }
 gate();
 </script>
