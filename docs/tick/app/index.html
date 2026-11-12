@@ -161,6 +161,18 @@ tr:last-child td{border-bottom:none}
 }
 .menu-btn{display:none}
 @media (min-width:761px){.menu-btn{display:none!important}}
+/* reusable popup menu (export, row actions) + kebab button */
+.menu-pop{position:absolute;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:11px;box-shadow:var(--shadow);min-width:178px;padding:5px;display:flex;flex-direction:column;animation:popin .09s ease-out}
+@keyframes popin{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+.menu-item{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:none;border:0;padding:8px 10px;border-radius:7px;font:inherit;font-size:13.5px;color:var(--fg);cursor:pointer}
+.menu-item:hover{background:var(--surface-2)}
+.menu-item.danger{color:var(--heart)}
+.menu-item svg{width:15px;height:15px;flex:none;opacity:.8}
+.menu-sep{height:1px;background:var(--border);margin:4px 2px}
+.kebab{width:30px;height:30px;padding:0;display:inline-grid;place-items:center;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;color:var(--muted)}
+.kebab:hover{background:var(--surface-2);color:var(--fg)}
+.kebab svg{width:17px;height:17px}
+.filt{padding:8px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);color:var(--fg);font:inherit;font-size:13.5px;max-width:200px}
 </style>
 </head>
 <body>
@@ -174,6 +186,13 @@ const SUPA_URL="https://adyqhpqugdlksqzpscwm.supabase.co";
 const SUPA_KEY="sb_publishable_l3HBtg1KUO6nBZkwxXqQvw_9uPyXSRz";
 const app=document.getElementById("app");
 const TICK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+const DOTS='<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>';
+const IC_PENCIL='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+const IC_TRASH='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>';
+const IC_ARCH='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v12h14V8M10 12h4"/></svg>';
+const IC_UNARCH='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v12h14V8M12 18v-6M9 15l3-3 3 3"/></svg>';
+const IC_MAIL='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>';
+const IC_OFF='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5"/></svg>';
 const esc=s=>(s==null?"":String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtDur=sec=>{sec=Math.max(0,Math.floor(sec||0));const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;return h>0?`${h}h ${String(m).padStart(2,'0')}m`:`${m}m ${String(s).padStart(2,'0')}s`;};
 const clock=sec=>{sec=Math.max(0,Math.floor(sec||0));const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;};
@@ -602,7 +621,7 @@ async function viewTeam(){
        <td>${m.team?`<span class="pill muted">${esc(m.team)}</span>`:'<span class="faint">—</span>'}</td>
        <td><span class="pill ${["owner","admin"].includes(m.role)?'accent':'muted'}">${esc(m.role)}</span></td>
        <td><span class="pill good">${esc(m.status)}</span></td>
-       <td style="text-align:right;white-space:nowrap">${mg?`<button class="btn ghost sm" data-edit="${m.id}">Edit</button>`:''}${(!self&&m.role!=='owner'&&mg)?` <button class="btn ghost sm" data-rm="${m.id}">Remove</button>`:''}</td></tr>`;}).join("")}
+       <td style="text-align:right;white-space:nowrap">${mg?`<button class="kebab" data-mid="${m.id}" title="Actions">${DOTS}</button>`:''}</td></tr>`;}).join("")}
      </tbody></table>
    </div>
    ${(invites||[]).length?`<div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Pending invites</h3></div>
@@ -611,10 +630,26 @@ async function viewTeam(){
        <td><button class="btn ghost sm" data-copy="${location.origin+location.pathname}#invite-${i.token}">Copy link</button></td>
        <td style="text-align:right"><button class="btn ghost sm" data-cancel="${i.id}">Cancel</button></td></tr>`).join("")}
      </tbody></table></div>`:""}`;
-  c.querySelectorAll("[data-rm]").forEach(b=>b.onclick=async()=>{b.disabled=true;await sb.from("memberships").delete().eq("id",b.dataset.rm);loadView("team");});
   c.querySelectorAll("[data-cancel]").forEach(b=>b.onclick=async()=>{b.disabled=true;await sb.from("invites").delete().eq("id",b.dataset.cancel);loadView("team");});
   c.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>copyText(b.dataset.copy,b));
-  c.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{const m=(mems||[]).find(x=>x.id===b.dataset.edit);if(m)memberModal(m,pm[m.user_id]||"Member");});
+  c.querySelectorAll("[data-mid]").forEach(b=>b.onclick=ev=>{ev.stopPropagation();
+    const m=(mems||[]).find(x=>x.id===b.dataset.mid);if(!m)return;
+    const self=m.user_id===state.user.id;const nm=pm[m.user_id]||(self?"You":"Member");
+    const items=[{label:"Edit details",icon:IC_PENCIL,on:()=>memberModal(m,nm)}];
+    if(!self&&m.role!=='owner'){
+      if(m.status==='active') items.push({label:"Set inactive",icon:IC_OFF,on:async()=>{await sb.from("memberships").update({status:"inactive"}).eq("id",m.id);loadView("team");}});
+      else items.push({label:"Reactivate",icon:IC_UNARCH,on:async()=>{await sb.from("memberships").update({status:"active"}).eq("id",m.id);loadView("team");}});
+      items.push("sep");
+      items.push({label:"Remove from team",icon:IC_TRASH,danger:true,on:()=>confirmDo(`Remove ${nm} from the team?`,"They’ll lose access and stop appearing in reports. This can’t be undone.","Remove",async()=>{await sb.from("memberships").delete().eq("id",m.id);loadView("team");})});
+    }
+    popMenu(b,items);
+  });
+}
+// Small reusable confirm dialog for destructive actions.
+function confirmDo(title,msg,label,fn){
+  showModal(`<h3 style="margin-bottom:6px">${esc(title)}</h3><p class="muted" style="margin:0 0 16px">${esc(msg)}</p>
+    <div class="row" style="justify-content:flex-end"><button class="btn" onclick="window._closeModal()">Cancel</button><button class="btn" id="_cfm" style="background:var(--heart);color:#fff;border-color:var(--heart)">${esc(label)}</button></div>`);
+  document.getElementById("_cfm").onclick=async()=>{const b=document.getElementById("_cfm");b.disabled=true;b.textContent="Working…";try{await fn();}catch(e){alert2(e.message||"Failed.");return;}_closeModal();};
 }
 function memberModal(m,nm){
   const self=m.user_id===state.user.id;
@@ -679,12 +714,12 @@ async function viewProjects(){
   const c=content();
   if(!projs||!projs.length){c.innerHTML=`<div class="card"><div class="empty">${ICON.projects}<div>No projects yet.${isMgr()?' Create your first one.':''}</div></div></div>`;return;}
   c.innerHTML=projs.map(p=>{const ts=tByP[p.id]||[];const done=ts.filter(t=>t.status==='done').length;
-    return `<div class="card" style="padding:16px 18px">
+    return `<div class="card" style="padding:16px 18px${p.archived?';opacity:.62':''}">
       <div class="sec-head"><div style="display:flex;align-items:center;gap:9px">
         <span style="width:11px;height:11px;border-radius:3px;background:${p.color||'var(--primary)'}"></span>
-        <h3>${esc(p.name)}</h3>${p.client?`<span class="pill muted">${esc(p.client)}</span>`:''}</div>
+        <h3>${esc(p.name)}</h3>${p.client?`<span class="pill muted">${esc(p.client)}</span>`:''}${p.archived?'<span class="pill muted">Archived</span>':''}</div>
         <div class="row">${ts.length?`<span class="pill muted">${done}/${ts.length} done</span>`:''}
-        ${isMgr()?`<button class="btn ghost sm" data-nt="${p.id}">+ Task</button>`:''}</div></div>
+        ${isMgr()?`<button class="btn ghost sm" data-nt="${p.id}">+ Task</button><button class="kebab" data-ppid="${p.id}" title="Actions">${DOTS}</button>`:''}</div></div>
       ${ts.length?`<div style="margin-top:10px;display:flex;flex-direction:column;gap:6px">
         ${ts.map(t=>`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--border)">
           <button class="task-check" data-tog="${t.id}" data-st="${t.status}" style="width:18px;height:18px;border-radius:5px;border:1.5px solid ${t.status==='done'?'var(--accent)':'var(--faint)'};background:${t.status==='done'?'var(--accent)':'transparent'};color:#fff;display:grid;place-items:center;padding:0">${t.status==='done'?'<svg width=11 height=11 viewBox="0 0 24 24" fill=none stroke=currentColor stroke-width=4><path d="M20 6 9 17l-5-5"/></svg>':''}</button>
@@ -694,6 +729,29 @@ async function viewProjects(){
     </div>`;}).join("");
   c.querySelectorAll("[data-nt]").forEach(b=>b.onclick=()=>taskModal(b.dataset.nt));
   c.querySelectorAll("[data-tog]").forEach(b=>b.onclick=async()=>{const ns=b.dataset.st==='done'?'todo':'done';await sb.from("tasks").update({status:ns}).eq("id",b.dataset.tog);loadView("projects");});
+  c.querySelectorAll("[data-ppid]").forEach(b=>b.onclick=ev=>{ev.stopPropagation();
+    const p=(projs||[]).find(x=>x.id===b.dataset.ppid);if(!p)return;
+    popMenu(b,[
+      {label:"Edit project",icon:IC_PENCIL,on:()=>projectEditModal(p)},
+      p.archived
+        ? {label:"Unarchive",icon:IC_UNARCH,on:async()=>{await sb.from("projects").update({archived:false}).eq("id",p.id);loadView("projects");}}
+        : {label:"Archive",icon:IC_ARCH,on:async()=>{await sb.from("projects").update({archived:true}).eq("id",p.id);loadView("projects");}},
+      "sep",
+      {label:"Delete project",icon:IC_TRASH,danger:true,on:()=>confirmDo(`Delete “${p.name}”?`,"The project and its tasks are removed. Tracked time stays but is no longer linked to a project.","Delete",async()=>{const {error}=await sb.from("projects").delete().eq("id",p.id);if(error)throw error;loadView("projects");})}
+    ]);
+  });
+}
+function projectEditModal(p){
+  showModal(`<h3 style="margin-bottom:14px">Edit project</h3>
+    <div class="field"><label>Name</label><input id="p_name" value="${esc(p.name||'')}"></div>
+    <div class="field"><label>Client (optional)</label><input id="p_client" value="${esc(p.client||'')}" placeholder="Acme Inc."></div>
+    <div class="field"><label>Colour</label><input id="p_color" type="color" value="${esc(p.color||'#4f46e5')}" style="height:40px;padding:4px"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" onclick="window._closeModal()">Cancel</button><button class="btn pri" id="p_save">Save</button></div>`);
+  document.getElementById("p_save").onclick=async()=>{
+    const name=document.getElementById("p_name").value.trim();if(!name){alert2("Name required.");return;}
+    const {error}=await sb.from("projects").update({name,client:document.getElementById("p_client").value.trim()||null,color:document.getElementById("p_color").value}).eq("id",p.id);
+    if(error){alert2(error.message);return;}_closeModal();loadView("projects");
+  };
 }
 function projectModal(){
   showModal(`<h3 style="margin-bottom:14px">New project</h3>
@@ -863,6 +921,49 @@ async function viewInvoice(id){
 /* =================== REPORTS =================== */
 function toCsv(rows){return rows.map(r=>r.map(c=>{c=(c==null?"":String(c));return /[",\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(",")).join("\n");}
 function downloadCsv(fname,rows){try{const b=new Blob([toCsv(rows)],{type:"text/csv;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=fname;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);}catch(e){alert2("Couldn't export: "+e.message);}}
+function _blobDL(fname,blob){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=fname;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);}
+// Excel export — HTML-table workbook that opens cleanly in Excel / Google Sheets (no library).
+function downloadXls(fname,rows,title){try{
+  const cell=c=>`<td>${esc(c==null?"":String(c))}</td>`;
+  const body=rows.map(r=>`<tr>${(r.length?r:[""]).map(cell).join("")}</tr>`).join("");
+  const html=`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"><style>td{border:1px solid #d8dddf;padding:4px 7px;font-family:Calibri,Arial,sans-serif;font-size:11pt} th,b{font-weight:700}</style></head><body><table>${title?`<tr><td colspan="8"><b>${esc(title)}</b></td></tr>`:""}${body}</table></body></html>`;
+  _blobDL(fname,new Blob(["﻿"+html],{type:"application/vnd.ms-excel;charset=utf-8"}));
+}catch(e){alert2("Couldn't export: "+e.message);}}
+// PDF export — opens a clean print view; the browser's "Save as PDF" finishes it (no library).
+function printRowsPdf(title,sub,rows){try{
+  const w=window.open("","_fitma_pdf","width=900,height=700");
+  if(!w){alert2("Allow pop-ups for this site to export PDF, then try again.");return;}
+  const head=(rows[0]||[]); const data=rows.slice(1);
+  const th=head.map(c=>`<th>${esc(c==null?"":String(c))}</th>`).join("");
+  const tb=data.map(r=>r.length?`<tr>${r.map(c=>`<td>${esc(c==null?"":String(c))}</td>`).join("")}</tr>`:`<tr class="gap"><td colspan="${head.length||1}"></td></tr>`).join("");
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
+   <style>*{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#273545}
+   body{margin:34px}h1{font-size:19px;margin:0 0 2px}.sub{color:#5d7488;font-size:12px;margin:0 0 16px}
+   table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #d8dddf;padding:6px 9px;text-align:left}
+   th{background:#eef0f2;font-weight:700}tr.gap td{border:0;height:10px}
+   .foot{margin-top:18px;color:#92aabe;font-size:10.5px}@media print{body{margin:14mm}}</style></head>
+   <body><h1>${esc(title)}</h1><p class="sub">${esc(sub||"")}</p>
+   <table><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table>
+   <p class="foot">Fitma Tick · generated ${new Date().toLocaleString()}</p>
+   <script>window.onload=function(){setTimeout(function(){window.print();},250);};<\/script></body></html>`);
+  w.document.close();
+}catch(e){alert2("Couldn't export: "+e.message);}}
+// Reusable popup menu anchored to a button. items:[{label,icon?,on,danger?}| "sep"]
+function closePop(){document.querySelectorAll(".menu-pop").forEach(x=>x.remove());}
+function popMenu(btn,items){
+  closePop();
+  const r=btn.getBoundingClientRect();
+  const m=document.createElement("div");m.className="menu-pop";
+  m.innerHTML=items.map((it,i)=>it==="sep"?'<div class="menu-sep"></div>':`<button class="menu-item${it.danger?' danger':''}" data-i="${i}">${it.icon||""}<span>${esc(it.label)}</span></button>`).join("");
+  document.body.appendChild(m);
+  let left=r.right-m.offsetWidth+window.scrollX; if(left<8)left=8;
+  let top=r.bottom+5+window.scrollY;
+  if(r.bottom+m.offsetHeight>window.innerHeight-8) top=r.top-m.offsetHeight-5+window.scrollY;
+  m.style.left=left+"px";m.style.top=top+"px";
+  m.querySelectorAll(".menu-item").forEach(b=>b.onclick=ev=>{ev.stopPropagation();closePop();const it=items[+b.dataset.i];if(it&&it.on)it.on();});
+  setTimeout(()=>document.addEventListener("click",closePop,{once:true}),0);
+}
+window.addEventListener("resize",closePop);
 function reportRange(key){const now=new Date();let from,to=new Date(now);to.setHours(23,59,59,999);
   if(key==="today"){from=new Date(now);from.setHours(0,0,0,0);}
   else if(key==="week"){from=new Date(now);const d=(from.getDay()+6)%7;from.setDate(from.getDate()-d);from.setHours(0,0,0,0);}
@@ -873,48 +974,81 @@ function reportRange(key){const now=new Date();let from,to=new Date(now);to.setH
 function daysBetween(from,to){const a=[];const d=new Date(from);d.setHours(0,0,0,0);const end=new Date(to);while(d<=end){a.push(new Date(d));d.setDate(d.getDate()+1);}return a;}
 const dkey=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 const hrs=sec=>(Math.max(0,sec||0)/3600);
-let reportsState={tab:"hours",range:"week"};
+let reportsState={tab:"hours",range:"week",member:"all",project:"all",group:"member",cfrom:null,cto:null};
 let _reportExport=null;
 
 async function viewReports(){
   const c=content();
   const pro=planAtLeast("pro"); const proOnly={attendance:1,apps:1};
   const tabs=[["hours","Tracked hours"],["timesheet","Timesheet"],["attendance","Attendance"],["apps","Apps & websites"]];
+  const mgr=isMgr();
+  // member + project lists up front so the filters can be populated
+  const [{data:mems},{data:projs}]=await Promise.all([
+    sb.from("memberships").select("user_id,role").eq("company_id",cid()).eq("status","active"),
+    sb.from("projects").select("id,name").eq("company_id",cid()).order("name")
+  ]);
+  const pm=await profilesMap((mems||[]).map(m=>m.user_id));
+  const nameOf=u=>pm[u]||(u===state.user.id?(state.user.user_metadata?.full_name||"You"):"Member");
+  const projName={}; (projs||[]).forEach(p=>projName[p.id]=p.name);
+  const memList=(mems||[]).map(m=>m.user_id).sort((a,b)=>nameOf(a).localeCompare(nameOf(b)));
+  // non-managers only ever see themselves — lock the member filter to them
+  if(!mgr) reportsState.member=state.user.id;
+  const showProj=reportsState.tab!=="apps";
+  const showGroup=reportsState.tab==="hours";
+  const custom=reportsState.range==="custom";
+  const today=dkey(new Date());
   c.innerHTML=`
    <div class="card" style="padding:12px 16px">
-     <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
        <div class="tabs" style="margin:0;flex:0 1 auto;flex-wrap:wrap">${tabs.map(([k,l])=>`<button data-rt="${k}" class="${reportsState.tab===k?'on':''}">${l}${proOnly[k]&&!pro?' \u{1F512}':''}</button>`).join("")}</div>
-       <select id="rrange" style="margin-left:auto;padding:8px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);color:var(--fg)">
-         <option value="today">Today</option><option value="week">This week</option><option value="month">This month</option><option value="last7">Last 7 days</option><option value="last30">Last 30 days</option></select>
-       <button class="btn sm" id="rexport" ${pro?'':'disabled title="CSV export is included from Pro"'}>Export CSV</button>
+       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-left:auto">
+         ${mgr?`<select id="rmember" class="filt" title="Member"><option value="all">All members</option>${memList.map(u=>`<option value="${u}" ${reportsState.member===u?'selected':''}>${esc(nameOf(u))}</option>`).join("")}</select>`:''}
+         ${showProj?`<select id="rproject" class="filt" title="Project"><option value="all">All projects</option><option value="__none" ${reportsState.project==="__none"?'selected':''}>No project</option>${(projs||[]).map(p=>`<option value="${p.id}" ${reportsState.project===p.id?'selected':''}>${esc(p.name)}</option>`).join("")}</select>`:''}
+         ${showGroup?`<select id="rgroup" class="filt" title="Group by"><option value="member" ${reportsState.group==="member"?'selected':''}>Group: Member</option><option value="project" ${reportsState.group==="project"?'selected':''}>Group: Project</option><option value="date" ${reportsState.group==="date"?'selected':''}>Group: Day</option></select>`:''}
+         <select id="rrange" class="filt" title="Date range">
+           <option value="today">Today</option><option value="week">This week</option><option value="month">This month</option><option value="last7">Last 7 days</option><option value="last30">Last 30 days</option><option value="custom">Custom…</option></select>
+         ${custom?`<input type="date" id="rfrom" class="filt" value="${reportsState.cfrom||today}" max="${today}"><span class="muted" style="font-size:12px">to</span><input type="date" id="rto" class="filt" value="${reportsState.cto||today}" max="${today}">`:''}
+         <button class="btn sm" id="rexport" ${pro?'':'disabled title="Exports are included from Pro"'}>Export ▾</button>
+       </div>
      </div>
    </div>
    <div id="rbody"><div class="loader" style="min-height:160px"><div class="spin"></div></div></div>`;
   c.querySelector("#rrange").value=reportsState.range;
   c.querySelectorAll("[data-rt]").forEach(b=>b.onclick=()=>{reportsState.tab=b.dataset.rt;viewReports();});
-  c.querySelector("#rrange").onchange=e=>{reportsState.range=e.target.value;viewReports();};
-  c.querySelector("#rexport").onclick=()=>{ if(pro&&_reportExport) downloadCsv(_reportExport.name,_reportExport.rows); };
-  if(proOnly[reportsState.tab]&&!pro){ c.querySelector("#rbody").innerHTML=`<div class="card"><div class="empty"><div style="font-size:15px;font-weight:600;color:var(--fg)">This report is on the Pro plan</div><p class="hint" style="max-width:440px;margin:8px auto 0">Attendance and Apps &amp; websites reports, plus CSV export, are included from Pro. <a href="#" onclick="window.loadView('billing');return false">See plans</a>.</p></div></div>`; return; }
+  c.querySelector("#rrange").onchange=e=>{reportsState.range=e.target.value;if(e.target.value==="custom"){reportsState.cfrom=reportsState.cfrom||today;reportsState.cto=reportsState.cto||today;}viewReports();};
+  const _rm=c.querySelector("#rmember"); if(_rm)_rm.onchange=e=>{reportsState.member=e.target.value;viewReports();};
+  const _rp=c.querySelector("#rproject"); if(_rp)_rp.onchange=e=>{reportsState.project=e.target.value;viewReports();};
+  const _rg=c.querySelector("#rgroup"); if(_rg)_rg.onchange=e=>{reportsState.group=e.target.value;viewReports();};
+  const _rf=c.querySelector("#rfrom"); if(_rf)_rf.onchange=e=>{reportsState.cfrom=e.target.value;viewReports();};
+  const _rt=c.querySelector("#rto"); if(_rt)_rt.onchange=e=>{reportsState.cto=e.target.value;viewReports();};
+  c.querySelector("#rexport").onclick=ev=>{ if(!pro||!_reportExport)return; const x=_reportExport; const base=x.name.replace(/\.csv$/,"");
+    popMenu(ev.currentTarget,[
+      {label:"Export as CSV",on:()=>downloadCsv(x.name,x.rows)},
+      {label:"Export as Excel",on:()=>downloadXls(base+".xls",x.rows,x.title)},
+      {label:"Export as PDF",on:()=>printRowsPdf(x.title||"Report",x.sub||"",x.rows)}
+    ]); };
+  if(proOnly[reportsState.tab]&&!pro){ c.querySelector("#rbody").innerHTML=`<div class="card"><div class="empty"><div style="font-size:15px;font-weight:600;color:var(--fg)">This report is on the Pro plan</div><p class="hint" style="max-width:440px;margin:8px auto 0">Attendance and Apps &amp; websites reports, plus exports, are included from Pro. <a href="#" onclick="window.loadView('billing');return false">See plans</a>.</p></div></div>`; return; }
 
-  const {from,to}=reportRange(reportsState.range);
+  // ---- resolve date range (custom-aware) ----
+  let from,to;
+  if(custom){ const cf=reportsState.cfrom||today, ct=reportsState.cto||today;
+    from=new Date(cf+"T00:00:00"); to=new Date(ct+"T23:59:59.999");
+    if(to<from){const t=from;from=new Date(ct+"T00:00:00");to=new Date(cf+"T23:59:59.999");}
+  } else { ({from,to}=reportRange(reportsState.range)); }
   const fromISO=from.toISOString(), toISO=to.toISOString();
-  const [{data:mems},{data:projs}]=await Promise.all([
-    sb.from("memberships").select("user_id,role").eq("company_id",cid()).eq("status","active"),
-    sb.from("projects").select("id,name").eq("company_id",cid())
-  ]);
-  const pm=await profilesMap((mems||[]).map(m=>m.user_id));
-  const nameOf=u=>pm[u]||(u===state.user.id?(state.user.user_metadata?.full_name||"You"):"Member");
-  const projName={}; (projs||[]).forEach(p=>projName[p.id]=p.name);
   const body=c.querySelector("#rbody");
-  const rangeLabel=`${from.toLocaleDateString()} – ${to.toLocaleDateString()}`;
+  const filtLabel=(reportsState.member!=="all"&&mgr?` · ${nameOf(reportsState.member)}`:"")+(showProj&&reportsState.project!=="all"?` · ${reportsState.project==="__none"?"No project":(projName[reportsState.project]||"Project")}`:"");
+  const rangeLabel=`${from.toLocaleDateString()} – ${to.toLocaleDateString()}${filtLabel}`;
 
   if(reportsState.tab==="apps"){
-    const {data:au}=await sb.from("app_usage").select("user_id,app_name,host,url,started_at").eq("company_id",cid()).gte("started_at",fromISO).lte("started_at",toISO);
+    let auq=sb.from("app_usage").select("user_id,app_name,host,url,started_at").eq("company_id",cid()).gte("started_at",fromISO).lte("started_at",toISO);
+    if(reportsState.member!=="all") auq=auq.eq("user_id",reportsState.member);
+    const {data:au}=await auq;
     const rows=au||[]; const SAMPLE_SEC=30; // desktop samples ~every 30s
     const agg={};
     rows.forEach(r=>{const key=(r.app_name||r.host||"Unknown");(agg[key]=agg[key]||{sec:0,n:0}); agg[key].sec+=SAMPLE_SEC; agg[key].n++;});
     const list=Object.entries(agg).map(([k,v])=>({app:k,sec:v.sec,n:v.n})).sort((a,b)=>b.sec-a.sec);
-    _reportExport={name:`apps-websites-${dkey(from)}.csv`,rows:[["App / Website","Approx. time","Samples"]].concat(list.map(x=>[x.app,fmtDur(x.sec),x.n]))};
+    _reportExport={name:`apps-websites-${dkey(from)}.csv`,title:`Apps & websites — ${rangeLabel}`,sub:"Approximate time from activity samples",rows:[["App / Website","Approx. time","Samples"]].concat(list.map(x=>[x.app,fmtDur(x.sec),x.n]))};
     body.innerHTML=`<div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Apps & websites</h3><span class="muted" style="font-size:13px">${rangeLabel} · approximate</span></div>
       ${list.length?`<table><thead><tr><th>App / Website</th><th style="width:45%">Share</th><th class="tnum" style="text-align:right">Approx. time</th></tr></thead><tbody>
       ${list.slice(0,40).map(x=>{const max=list[0].sec||1;return `<tr><td>${esc(x.app)}</td><td><div class="bar"><i style="width:${Math.round(x.sec/max*100)}%"></i></div></td><td class="tnum" style="text-align:right;font-weight:600">${fmtDur(x.sec)}</td></tr>`;}).join("")}
@@ -923,31 +1057,41 @@ async function viewReports(){
   }
 
   // time-entry based reports
-  const {data:ents}=await sb.from("time_entries").select("user_id,project_id,started_at,ended_at,duration_sec").eq("company_id",cid()).gte("started_at",fromISO).lte("started_at",toISO).order("started_at");
+  let entq=sb.from("time_entries").select("user_id,project_id,started_at,ended_at,duration_sec").eq("company_id",cid()).gte("started_at",fromISO).lte("started_at",toISO).order("started_at");
+  if(reportsState.member!=="all") entq=entq.eq("user_id",reportsState.member);
+  if(reportsState.project==="__none") entq=entq.is("project_id",null);
+  else if(reportsState.project!=="all") entq=entq.eq("project_id",reportsState.project);
+  const {data:ents}=await entq;
   const E=ents||[];
-  const members=(mems||[]).map(m=>m.user_id);
+  // which members to show as rows — narrowed when a single member is selected
+  const members=(reportsState.member!=="all"?[reportsState.member]:(mems||[]).map(m=>m.user_id));
 
   if(reportsState.tab==="hours"){
-    const byUser={}, byProj={}; let total=0;
-    E.forEach(e=>{const s=e.duration_sec||0;total+=s;byUser[e.user_id]=(byUser[e.user_id]||0)+s;const pk=e.project_id||"__none";byProj[pk]=(byProj[pk]||0)+s;});
-    const urows=members.map(u=>({u,sec:byUser[u]||0})).sort((a,b)=>b.sec-a.sec);
-    const prows=Object.entries(byProj).map(([k,v])=>({p:k==="__none"?"No project":(projName[k]||"Project"),sec:v})).sort((a,b)=>b.sec-a.sec);
-    _reportExport={name:`tracked-hours-${dkey(from)}.csv`,rows:[["Member","Hours","Seconds"]].concat(urows.map(r=>[nameOf(r.u),hrs(r.sec).toFixed(2),r.sec])).concat([[],["Project","Hours"]]).concat(prows.map(r=>[r.p,hrs(r.sec).toFixed(2)]))};
-    const maxU=Math.max(1,...urows.map(r=>r.sec));
+    const byUser={}, byProj={}, byDay={}; let total=0;
+    E.forEach(e=>{const s=e.duration_sec||0;total+=s;
+      byUser[e.user_id]=(byUser[e.user_id]||0)+s;
+      const pk=e.project_id||"__none";byProj[pk]=(byProj[pk]||0)+s;
+      byDay[dkey(new Date(e.started_at))]=(byDay[dkey(new Date(e.started_at))]||0)+s;});
+    const urows=members.map(u=>({label:nameOf(u),ini:initials(nameOf(u)),sec:byUser[u]||0})).sort((a,b)=>b.sec-a.sec);
+    const prows=Object.entries(byProj).map(([k,v])=>({label:k==="__none"?"No project":(projName[k]||"Project"),sec:v})).sort((a,b)=>b.sec-a.sec);
+    const drows=daysBetween(from,to).map(d=>({label:d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}),sec:byDay[dkey(d)]||0}));
+    const groups={member:{title:"By member",head:"Member",rows:urows,avatar:true},project:{title:"By project",head:"Project",rows:prows},date:{title:"By day",head:"Day",rows:drows}};
+    const primary=groups[reportsState.group]||groups.member;
+    const secondary=reportsState.group==="member"?groups.project:groups.member;
+    const tableFor=(g,withBar)=>{const max=Math.max(1,...g.rows.map(r=>r.sec));
+      return g.rows.length?`<table><thead><tr><th>${g.head}</th>${withBar?'<th style="width:45%">Tracked</th>':''}<th class="tnum" style="text-align:right">Hours</th></tr></thead><tbody>
+        ${g.rows.map(r=>`<tr><td>${g.avatar?`<div style="display:flex;align-items:center;gap:9px"><div class="avatar" style="width:26px;height:26px;font-size:11px">${esc(r.ini)}</div>${esc(r.label)}</div>`:esc(r.label)}</td>${withBar?`<td><div class="bar"><i style="width:${Math.round(r.sec/max*100)}%"></i></div></td>`:''}<td class="tnum" style="text-align:right;font-weight:600">${fmtDur(r.sec)}</td></tr>`).join("")}
+        </tbody></table>`:`<div class="empty">No time in this range.</div>`;};
+    _reportExport={name:`tracked-hours-${dkey(from)}.csv`,title:`Tracked hours — ${rangeLabel}`,sub:`${primary.title} · total ${fmtDur(total)}`,
+      rows:[[primary.head,"Hours","Seconds"]].concat(primary.rows.map(r=>[r.label,hrs(r.sec).toFixed(2),r.sec]))};
     body.innerHTML=`
      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
        <div class="card stat"><div class="k">Total tracked</div><div class="v tnum">${fmtDur(total)}</div><div class="sub">${rangeLabel}</div></div>
        <div class="card stat"><div class="k">People tracked</div><div class="v tnum">${urows.filter(r=>r.sec>0).length}</div><div class="sub">of ${members.length}</div></div>
        <div class="card stat"><div class="k">Avg / person</div><div class="v tnum">${fmtDur(urows.length?total/urows.length:0)}</div><div class="sub">across the team</div></div>
      </div>
-     <div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>By member</h3></div>
-       <table><thead><tr><th>Member</th><th style="width:45%">Tracked</th><th class="tnum" style="text-align:right">Hours</th></tr></thead><tbody>
-       ${urows.map(r=>`<tr><td><div style="display:flex;align-items:center;gap:9px"><div class="avatar" style="width:26px;height:26px;font-size:11px">${esc(initials(nameOf(r.u)))}</div>${esc(nameOf(r.u))}</div></td>
-        <td><div class="bar"><i style="width:${Math.round(r.sec/maxU*100)}%"></i></div></td><td class="tnum" style="text-align:right;font-weight:600">${fmtDur(r.sec)}</td></tr>`).join("")}
-       </tbody></table></div>
-     <div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>By project</h3></div>
-       ${prows.length?`<table><thead><tr><th>Project</th><th class="tnum" style="text-align:right">Hours</th></tr></thead><tbody>
-       ${prows.map(r=>`<tr><td>${esc(r.p)}</td><td class="tnum" style="text-align:right;font-weight:600">${fmtDur(r.sec)}</td></tr>`).join("")}</tbody></table>`:`<div class="empty">No time in this range.</div>`}</div>`;
+     <div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>${primary.title}</h3></div>${tableFor(primary,true)}</div>
+     <div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>${secondary.title}</h3></div>${tableFor(secondary,false)}</div>`;
     return;
   }
 
@@ -956,7 +1100,7 @@ async function viewReports(){
     const grid={}; members.forEach(u=>grid[u]={});
     E.forEach(e=>{const dk=dkey(new Date(e.started_at));const u=e.user_id;grid[u]=grid[u]||{};grid[u][dk]=(grid[u][dk]||0)+(e.duration_sec||0);});
     const dayCols=days.slice(-14); // cap visible columns; CSV has all
-    _reportExport={name:`timesheet-${dkey(from)}.csv`,rows:[["Member"].concat(days.map(d=>dkey(d))).concat(["Total"])].concat(
+    _reportExport={name:`timesheet-${dkey(from)}.csv`,title:`Timesheet — ${rangeLabel}`,sub:`${days.length} day(s)`,rows:[["Member"].concat(days.map(d=>dkey(d))).concat(["Total"])].concat(
       members.map(u=>[nameOf(u)].concat(days.map(d=>hrs((grid[u]||{})[dkey(d)]||0).toFixed(2))).concat([hrs(days.reduce((s,d)=>s+((grid[u]||{})[dkey(d)]||0),0)).toFixed(2)])))};
     body.innerHTML=`<div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Timesheet</h3><span class="muted" style="font-size:13px">${rangeLabel}${days.length>14?' · last 14 days shown, CSV has all':''}</span></div>
       <div style="overflow-x:auto"><table><thead><tr><th>Member</th>${dayCols.map(d=>`<th class="tnum" style="text-align:right">${d.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</th>`).join("")}<th class="tnum" style="text-align:right">Total</th></tr></thead><tbody>
@@ -975,7 +1119,7 @@ async function viewReports(){
       const starts=ds.map(x=>x.first.getHours()*60+x.first.getMinutes()).filter(x=>x!=null);const avgStart=starts.length?Math.round(starts.reduce((a,b)=>a+b,0)/starts.length):null;
       return {u,present,totSec,avgStart};}).sort((a,b)=>b.present-a.present);
     const hhmm=m=>m==null?"—":String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
-    _reportExport={name:`attendance-${dkey(from)}.csv`,rows:[["Member","Days present","Avg start","Total hours"]].concat(summary.map(r=>[nameOf(r.u),r.present,hhmm(r.avgStart),hrs(r.totSec).toFixed(2)]))};
+    _reportExport={name:`attendance-${dkey(from)}.csv`,title:`Attendance — ${rangeLabel}`,sub:`${days.length} day(s)`,rows:[["Member","Days present","Avg start","Total hours"]].concat(summary.map(r=>[nameOf(r.u),r.present,hhmm(r.avgStart),hrs(r.totSec).toFixed(2)]))};
     body.innerHTML=`<div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Attendance</h3><span class="muted" style="font-size:13px">${rangeLabel} · ${days.length} day(s)</span></div>
       <table><thead><tr><th>Member</th><th class="tnum" style="text-align:right">Days present</th><th class="tnum" style="text-align:right">Avg start</th><th class="tnum" style="text-align:right">Total hours</th></tr></thead><tbody>
       ${summary.map(r=>`<tr><td><div style="display:flex;align-items:center;gap:9px"><div class="avatar" style="width:26px;height:26px;font-size:11px">${esc(initials(nameOf(r.u)))}</div>${esc(nameOf(r.u))}</div></td>
@@ -1304,6 +1448,7 @@ async function openPayrollRun(id){
 
 /* =================== TIME OFF =================== */
 const DEFAULT_LEAVE=14;
+let timeoffState={status:"all",type:"all"};
 const leaveTypePill=t=>({vacation:'accent',personal:'muted',sick:'warn',unpaid:'muted',other:'muted'})[t]||'muted';
 const PAID_LEAVE=['vacation','personal'];
 function daysInclusive(a,b){const d1=new Date(a),d2=new Date(b);return Math.max(1,Math.round((d2-d1)/864e5)+1);}
@@ -1320,6 +1465,8 @@ async function viewTimeoff(){
   const takenOf=u=>(reqs||[]).filter(r=>r.user_id===u&&r.status==='approved'&&PAID_LEAVE.includes(r.type)&&new Date(r.start_date).getFullYear()===yr).reduce((s,r)=>s+Number(r.days||0),0);
   const myAllow=allowOf(me), myTaken=takenOf(me), myLeft=Math.max(0,myAllow-myTaken);
   const pending=(reqs||[]).filter(r=>r.status==='pending');
+  const fReqs=(reqs||[]).filter(r=>(timeoffState.status==="all"||r.status===timeoffState.status)&&(timeoffState.type==="all"||r.type===timeoffState.type));
+  const toTypes=["vacation","personal","sick","unpaid","other"];
   c.innerHTML=`
    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
      <div class="card stat"><div class="k">Your allowance</div><div class="v tnum">${myAllow}</div><div class="sub">paid days · ${yr}</div></div>
@@ -1333,13 +1480,17 @@ async function viewTimeoff(){
        <td class="muted" style="font-size:13px">${r.reason?esc(r.reason):'—'}</td>
        <td style="text-align:right;white-space:nowrap"><button class="btn acc sm" data-appr="${r.id}">Approve</button> <button class="btn ghost sm" data-rej="${r.id}">Reject</button></td></tr>`).join("")}
      </tbody></table></div></div>`:''}
-   <div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>${mgr?'All requests':'My requests'}</h3><span class="pill muted">${(reqs||[]).length}</span></div>
-   ${(reqs||[]).length?`<div style="overflow-x:auto"><table><thead><tr>${mgr?'<th>Member</th>':''}<th>Type</th><th>Dates</th><th class="tnum" style="text-align:right">Days</th><th>Status</th><th></th></tr></thead><tbody>
-     ${(reqs||[]).map(r=>{const own=r.user_id===me;return `<tr>${mgr?`<td>${esc(nameOf(r.user_id))}</td>`:''}<td><span class="pill ${leaveTypePill(r.type)}">${esc(r.type)}</span></td>
+   <div class="card"><div class="sec-head" style="padding:16px 18px 10px;flex-wrap:wrap;gap:8px"><div style="display:flex;align-items:center;gap:9px"><h3>${mgr?'All requests':'My requests'}</h3><span class="pill muted">${fReqs.length}${fReqs.length!==(reqs||[]).length?` / ${(reqs||[]).length}`:''}</span></div>
+     <div style="display:flex;gap:8px;flex-wrap:wrap">
+       <select id="to_fstatus" class="filt"><option value="all">All statuses</option><option value="pending" ${timeoffState.status==='pending'?'selected':''}>Pending</option><option value="approved" ${timeoffState.status==='approved'?'selected':''}>Approved</option><option value="rejected" ${timeoffState.status==='rejected'?'selected':''}>Rejected</option></select>
+       <select id="to_ftype" class="filt"><option value="all">All types</option>${toTypes.map(t=>`<option value="${t}" ${timeoffState.type===t?'selected':''}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`).join("")}</select>
+     </div></div>
+   ${fReqs.length?`<div style="overflow-x:auto"><table><thead><tr>${mgr?'<th>Member</th>':''}<th>Type</th><th>Dates</th><th class="tnum" style="text-align:right">Days</th><th>Status</th><th></th></tr></thead><tbody>
+     ${fReqs.map(r=>{const own=r.user_id===me;return `<tr>${mgr?`<td>${esc(nameOf(r.user_id))}</td>`:''}<td><span class="pill ${leaveTypePill(r.type)}">${esc(r.type)}</span></td>
        <td style="white-space:nowrap">${fmtDate(r.start_date)}${r.end_date!==r.start_date?' – '+fmtDate(r.end_date):''}</td><td class="tnum" style="text-align:right">${Number(r.days)}</td>
        <td><span class="pill ${r.status==='approved'?'good':r.status==='rejected'?'crit':'warn'}">${esc(r.status)}</span></td>
        <td style="text-align:right">${(own&&r.status==='pending')?`<button class="btn ghost sm" data-wd="${r.id}">Withdraw</button>`:(mgr&&r.status!=='pending')?`<button class="btn ghost sm" data-del="${r.id}">Remove</button>`:''}</td></tr>`;}).join("")}
-     </tbody></table></div>`:`<div class="empty">${ICON.timeoff}<div>No time-off requests yet.</div></div>`}</div>
+     </tbody></table></div>`:`<div class="empty">${ICON.timeoff}<div>${(reqs||[]).length?'No requests match these filters.':'No time-off requests yet.'}</div></div>`}</div>
    ${mgr?`<div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Team balances · ${yr}</h3></div>
      <div style="overflow-x:auto"><table><thead><tr><th>Member</th><th class="tnum" style="text-align:right">Allowance</th><th class="tnum" style="text-align:right">Taken</th><th class="tnum" style="text-align:right">Remaining</th></tr></thead><tbody>
      ${(mems||[]).map(m=>{const a=allowOf(m.user_id),t=takenOf(m.user_id);return `<tr><td>${esc(nameOf(m.user_id))}</td><td class="tnum" style="text-align:right">${a}</td><td class="tnum" style="text-align:right">${t}</td><td class="tnum" style="text-align:right;font-weight:600">${Math.max(0,a-t)}</td></tr>`;}).join("")}
@@ -1348,6 +1499,8 @@ async function viewTimeoff(){
   c.querySelectorAll("[data-rej]").forEach(b=>b.onclick=async()=>{b.disabled=true;await sb.from("time_off_requests").update({status:"rejected",decided_by:me,decided_at:new Date().toISOString()}).eq("id",b.dataset.rej);loadView("timeoff");});
   c.querySelectorAll("[data-wd]").forEach(b=>b.onclick=async()=>{b.disabled=true;await sb.from("time_off_requests").delete().eq("id",b.dataset.wd);loadView("timeoff");});
   c.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{b.disabled=true;await sb.from("time_off_requests").delete().eq("id",b.dataset.del);loadView("timeoff");});
+  const _tfs=c.querySelector("#to_fstatus"); if(_tfs)_tfs.onchange=e=>{timeoffState.status=e.target.value;viewTimeoff();};
+  const _tft=c.querySelector("#to_ftype"); if(_tft)_tft.onchange=e=>{timeoffState.type=e.target.value;viewTimeoff();};
 }
 function requestTimeoff(){
   showModal(`<h3 style="margin-bottom:14px">Request time off</h3>
