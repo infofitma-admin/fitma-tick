@@ -163,6 +163,13 @@ function render(d){
        <th>Member</th><th class="n">Hours</th><th class="n">Avg/day</th><th class="n">Activity</th><th class="n">Days</th><th class="n">Late</th><th>Last seen</th>
      </tr></thead><tbody id="rows"></tbody></table></div>
    </div>
+   <div class="card">
+     <div class="sec-head"><h3>Projects</h3><span class="chip">${(d.projects||[]).length} from WebWork</span></div>
+     <div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>Client</th><th>Assigned to</th></tr></thead><tbody>
+     ${(d.projects||[]).map(pr=>{const m=members.find(x=>String(x.webwork_id)===String(pr.assignee_webwork_id));
+        return `<tr><td>${esc(pr.name||'')}</td><td><span class="pill muted">${esc(pr.client||'—')}</span></td><td>${m?esc(m.name):'<span class="faint">unassigned</span>'}</td></tr>`;}).join("")}
+     </tbody></table></div>
+   </div>
    <div class="card" id="perfcard">
      <div class="sec-head"><h3>Monthly performance</h3><span class="chip">scores out of 10</span></div>
      <div style="padding:0 16px 16px">

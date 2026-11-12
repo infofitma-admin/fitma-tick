@@ -120,6 +120,10 @@ function render(d,email){
      <div class="card stat"><div class="k">On time</div><div class="v">${onTime}</div><div class="s">of ${graded.length} days</div></div>
      <div class="card stat"><div class="k">Punctuality</div><div class="v">${punctPct==null?'—':punctPct+'%'}</div><div class="s">${late?late+' late day(s)':(punctPct==null?'—':'perfect!')}</div></div>
    </div>
+   ${(d.projects&&d.projects.length)?`<div class="card" style="margin-bottom:14px">
+     <div class="sec-head"><h3>My projects</h3><span class="muted" style="font-size:12px">${d.projects.length}</span></div>
+     <div style="padding:0 16px 14px">${d.projects.map(pr=>`<div style="display:flex;align-items:center;gap:9px;padding:9px 0;border-top:1px solid var(--border)">
+        <span class="pill muted">${esc(pr.client||'—')}</span><span style="font-weight:500">${esc(pr.name||'')}</span></div>`).join("")}</div></div>`:''}
    ${(d.performance&&d.performance.length)?`<div class="card" style="margin-bottom:14px">
      <div class="sec-head"><h3>My monthly performance</h3></div>
      <div style="padding:0 16px 16px">
