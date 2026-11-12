@@ -21,6 +21,34 @@ const SHOT_MAX_WIDTH = 1600;     // downscale screenshots to keep uploads small
 const SITE_SAMPLE_MS = 30 * 1000;    // check the active app/website every 30s while working
 const MAX_BUFFER = 600;              // cap offline buffers so memory can't grow forever
 
+// ---- runtime settings (overridden by the company's Settings in the web app) --
+const RT = {
+  idleLimitS: IDLE_LIMIT_S,
+  shotMinMs: SHOT_MIN_MS,
+  shotMaxMs: SHOT_MAX_MS,
+  shotsEnabled: true
+};
+// Map the company's saved settings (companies.settings jsonb) onto RT.
+function applySettings(st) {
+  try {
+    st = st || {};
+    const sc = st.screenshots || {};
+    RT.shotsEnabled = sc.enabled !== false;               // default on
+    const mins = Number(sc.intervalMin);
+    if (mins && mins > 0) {                               // jitter ±10% around the chosen interval
+      const base = mins * 60 * 1000;
+      RT.shotMinMs = Math.max(60 * 1000, Math.round(base * 0.9));
+      RT.shotMaxMs = Math.max(RT.shotMinMs + 30 * 1000, Math.round(base * 1.1));
+    }
+    const lim = Number((st.idle || {}).limitMin);
+    if (lim && lim > 0) RT.idleLimitS = Math.max(60, Math.round(lim * 60));
+  } catch (e) {}
+}
+// Re-fetch settings from the backend (fire-and-forget) so changes apply without a re-login.
+async function refreshSettings() {
+  try { const r = await apiPost({ action: 'settings' }); if (r && r.settings) applySettings(r.settings); } catch (e) {}
+}
+
 const CONFIG_PATH = () => path.join(app.getPath('userData'), 'fitma-tick.json');
 function loadConfig() {
   try { return JSON.parse(fs.readFileSync(CONFIG_PATH(), 'utf8')); } catch (e) { return {}; }
@@ -170,7 +198,8 @@ async function captureAndUpload() {
   }
 }
 function scheduleNextShot() {
-  const jitter = SHOT_MIN_MS + Math.random() * (SHOT_MAX_MS - SHOT_MIN_MS);
+  if (!RT.shotsEnabled) { T.nextShotAt = 0; return; }   // screenshots turned off for this company
+  const jitter = RT.shotMinMs + Math.random() * (RT.shotMaxMs - RT.shotMinMs);
   T.nextShotAt = Date.now() + jitter;
 }
 
@@ -181,7 +210,7 @@ function tick() {
   rollDayIfNeeded();
   const idle = powerMonitor.getSystemIdleTime(); // seconds since last input
 
-  if (idle >= IDLE_LIMIT_S) {
+  if (idle >= RT.idleLimitS) {
     // user went idle: close the segment at the moment idle began, then pause
     if (!T.paused && T.segStart) {
       const idleStartMs = Date.now() - idle * 1000;
@@ -201,8 +230,8 @@ function tick() {
     T.todaySec += 1;
     T.totalSamples += 1;
     if (idle < ACTIVE_IF_IDLE_UNDER) T.activeSamples += 1;
-    // time for a screenshot?
-    if (T.nextShotAt && Date.now() >= T.nextShotAt) {
+    // time for a screenshot? (only when enabled for this company)
+    if (RT.shotsEnabled && T.nextShotAt && Date.now() >= T.nextShotAt) {
       T.nextShotAt = 0; // guard against double-fire while capturing
       captureAndUpload();
     }
@@ -213,6 +242,7 @@ function tick() {
 // ---- start / stop --------------------------------------------------------
 function startTracking(project) {
   if (T.tracking) return;
+  refreshSettings();   // pick up any Settings changes the admin made since login
   rollDayIfNeeded();
   T.tracking = true; T.paused = false; T.manualPaused = false;
   T.project = project || T.project || '';
@@ -347,6 +377,7 @@ function pushState() {
 ipcMain.handle('login', async (_e, { email, password }) => {
   const body = await apiPost({ action: 'login', email, password });
   cfg.deviceToken = body.deviceToken; cfg.empId = body.empId; cfg.name = body.name; cfg.mustChange = !!body.mustChange;
+  applySettings(body.settings);   // obey the company's screenshot/idle settings
   saveConfig(cfg);
   pushState();
   return { ok: true, name: body.name, mustChange: !!body.mustChange };

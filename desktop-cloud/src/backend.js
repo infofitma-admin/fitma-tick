@@ -90,7 +90,25 @@ function createApi({ getSession, setSession }) {
     }
     session.company_id = mm.body[0].company_id;
     setSession(session);
-    return { deviceToken: 'cloud', empId: session.user_id, name: session.name, mustChange: false };
+    // company settings (screenshot on/off + interval, idle limit) — applied by the tracker
+    let settings = {};
+    try {
+      const cs = await fetch(SUPABASE_URL + '/rest/v1/companies?select=settings&id=eq.' + session.company_id + '&limit=1', { headers: authHeaders(session) });
+      const csj = await asJson(cs);
+      if (csj.ok && csj.body && csj.body[0] && csj.body[0].settings) settings = csj.body[0].settings;
+    } catch (e) {}
+    return { deviceToken: 'cloud', empId: session.user_id, name: session.name, mustChange: false, settings: settings };
+  }
+
+  // Fetch the latest company settings on demand (tracker refreshes these periodically).
+  async function companySettings() {
+    try {
+      const r = await authed((s) => fetch(
+        SUPABASE_URL + '/rest/v1/companies?select=settings&id=eq.' + s.company_id + '&limit=1',
+        { headers: authHeaders(s) }).then(asJson));
+      if (r.ok && r.body && r.body[0] && r.body[0].settings) return { settings: r.body[0].settings };
+    } catch (e) {}
+    return { settings: {} };
   }
 
   async function projects() {
@@ -168,6 +186,7 @@ function createApi({ getSession, setSession }) {
       case 'ingest':     return ingest(payload.entries);
       case 'screenshot': return screenshot(payload.image, payload.ts, payload.activity);
       case 'activity':   return activity(payload.items);
+      case 'settings':   return companySettings();
       case 'events':     return {}; // session events are a workspace-only feature for now
       default:           return {};
     }
