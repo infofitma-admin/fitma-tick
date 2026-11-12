@@ -46,7 +46,7 @@ th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute
 .muted{color:var(--muted)}.err{color:var(--crit);font-size:13px;margin-top:8px}
 .foot{color:var(--faint);font-size:12px;margin-top:16px;text-align:center}
 a{color:var(--accent)}
-.btn.ghost{background:var(--surface-2);color:var(--fg);border:1px solid var(--border);width:auto;padding:8px 14px}
+.btn.ghost{background:var(--surface-2);color:var(--fg);border:1px solid var(--border);width:auto;padding:9px 16px;display:inline-block;text-decoration:none}
 #report{display:none}
 #report .rpt{max-width:720px;margin:0 auto;padding:28px;color:var(--fg)}
 #report .rhead{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid var(--primary);padding-bottom:12px;margin-bottom:18px}
@@ -144,6 +144,17 @@ function render(d,email){
         <td>${r.activity_pct==null?'<span class="muted">—</span>':r.activity_pct+'%'}</td>
       </tr>`).join(""):`<tr><td colspan="4" class="muted" style="padding:18px;text-align:center">No attendance recorded yet this month.</td></tr>`}
      </tbody></table></div>
+   </div>
+   <div class="card" style="margin-top:14px">
+     <div class="sec-head"><h3>Fitma Tick — download the tracker</h3></div>
+     <div style="padding:0 16px 16px">
+       <p class="muted" style="font-size:13px;margin:0 0 12px">Install Fitma Tick on your computer to track your work. Choose your system:</p>
+       <div style="display:flex;gap:10px;flex-wrap:wrap">
+         <a class="btn ghost" href="https://github.com/infofitma-admin/fitma-tick/releases/latest/download/Fitma-Tick-Setup.exe">⬇ Windows (.exe)</a>
+         <a class="btn ghost" href="https://github.com/infofitma-admin/fitma-tick/releases/latest/download/Fitma-Tick.dmg">⬇ Mac (.dmg)</a>
+       </div>
+       <p class="hint" style="margin-top:12px;color:var(--faint);font-size:12px">Windows: after downloading, run it and if a blue warning shows, click "More info → Run anyway". Mac: open the .dmg, drag Fitma Tick to Applications, then right-click the app → Open the first time, and allow Screen Recording in System Settings → Privacy &amp; Security. Sign in with your Fitma email and password.</p>
+     </div>
    </div>
    <div class="foot">Fitma Workspace · your attendance updates automatically each day</div>`;
   document.getElementById("logout").onclick=e=>{e.preventDefault();try{localStorage.removeItem("fitma_me")}catch(x){}location.reload();};
