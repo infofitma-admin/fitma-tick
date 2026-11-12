@@ -63,9 +63,17 @@ th.n{text-align:right}
 .k2{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-bottom:3px}
 select,input[type=number],input[type=month],textarea{font-family:var(--ff);font-size:14px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--fg);width:100%;box-sizing:border-box}
 .scorechip{display:inline-flex;align-items:center;gap:4px;font-size:12px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:3px 8px;margin:2px}
+#report{display:none}
+#report .rpt{max-width:720px;margin:0 auto;padding:28px;color:var(--fg)}
+#report .rhead{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid var(--primary);padding-bottom:12px;margin-bottom:18px}
+#report .rbrand{font-family:var(--fh);font-size:24px;font-weight:700;color:var(--primary)}
+#report .score{border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center}
+#report .score .v{font-family:var(--fh);font-size:34px;font-weight:700}
+@media print{ .wrap{display:none!important} #report{display:block} @page{margin:12mm} body{background:#fff} }
 </style>
 </head>
 <body>
+<div id="report"></div>
 <div class="wrap" id="app">
   <div class="gate card" style="padding:26px">
     <div style="font-family:var(--fh);font-size:20px;font-weight:700">Fitma Team</div>
@@ -115,6 +123,7 @@ async function load(pin){
 
 function render(d){
   const members=d.members||[], att=d.attendance||[];
+  window._admin={members,att};
   const byId={}; members.forEach(m=>byId[m.webwork_id]={m,rows:[]});
   att.forEach(a=>{ if(byId[a.webwork_id]) byId[a.webwork_id].rows.push(a); });
   const dates=att.map(a=>a.work_date).sort();
@@ -169,7 +178,8 @@ function render(d){
        <label style="display:block;margin-top:8px"><div class="k2">Notes (shown to the employee)</div><textarea id="pf_notes" rows="2" style="width:100%"></textarea></label>
        <div style="display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap">
          <label style="display:flex;align-items:center;gap:7px;font-size:13px"><input id="pf_pub" type="checkbox"> Published (employee can see it after the month ends)</label>
-         <button class="btn" id="pf_save" style="margin-left:auto">Save score</button>
+         <button class="btn ghost" id="pf_print" style="margin-left:auto">Print report</button>
+         <button class="btn" id="pf_save">Save score</button>
        </div>
        <div id="pf_msg" class="muted" style="font-size:13px;margin-top:8px"></div>
        <div id="pf_existing" style="margin-top:12px"></div>
@@ -234,6 +244,11 @@ function setupPerf(members, perf){
       </tbody></table></div>`:'';
   }
   renderExisting();
+  const gVal=id=>{const v=document.getElementById(id).value;return v===''?null:Math.max(0,Math.min(10,Math.round(+v)));};
+  document.getElementById("pf_print").onclick=()=>{
+    adminPrintReport(Number(sel.value), nameOf(sel.value), document.getElementById("pf_month").value,
+      {project_mgmt:gVal("pf_pm"),time_mgmt:gVal("pf_tm"),eager_to_learn:gVal("pf_el"),notes:document.getElementById("pf_notes").value.trim()});
+  };
   document.getElementById("pf_save").onclick=async()=>{
     const msg=document.getElementById("pf_msg");
     const g=id=>{const v=document.getElementById(id).value;return v===''?null:Math.max(0,Math.min(10,Math.round(+v)));};
@@ -249,6 +264,34 @@ function setupPerf(members, perf){
     msg.innerHTML='<span style="color:var(--good)">Saved ✓</span>'; renderExisting();
   };
 }
+function monthSummaryA(period, mid, role, name){
+  const rows=((window._admin&&window._admin.att)||[]).filter(r=>r.webwork_id===mid && r.work_date.slice(0,7)===period);
+  const present=rows.filter(r=>r.start_time&&r.working_day);
+  const graded=present.map(r=>lateMins(r.start_time,schedStart(r.work_date,role,name))).filter(lm=>lm!=null);
+  const onT=graded.filter(lm=>lm<=0).length, ni=graded.filter(lm=>lm>0&&lm<=5).length, ar=graded.filter(lm=>lm>5).length;
+  return {days:present.length,onTime:onT,needs:ni,risk:ar,pct:graded.length?Math.round(onT/graded.length*100):null};
+}
+window.adminPrintReport=function(mid, name, period, p){
+  if(!period){document.getElementById("pf_msg").textContent="Pick a month to print.";return;}
+  const m=(window._admin.members||[]).find(x=>x.webwork_id===mid)||{};
+  const role=m.role;
+  const mn=new Date(period+"-01T00:00:00").toLocaleDateString(undefined,{month:'long',year:'numeric'});
+  const s=monthSummaryA(period, mid, role, name);
+  const sc=(l,v)=>`<div class="score"><div style="font-size:11px;color:#5d7488;text-transform:uppercase;letter-spacing:.04em;font-weight:600">${l}</div><div class="v">${v==null?'—':v+'<span style="font-size:15px;color:#92aabe">/10</span>'}</div></div>`;
+  const vals=[p.project_mgmt,p.time_mgmt,p.eager_to_learn].filter(v=>v!=null);
+  const avg=vals.length?(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1):'—';
+  document.getElementById("report").innerHTML=`<div class="rpt">
+    <div class="rhead"><div><div class="rbrand">Fitma</div><div style="color:#5d7488;font-size:13px">Monthly Performance Report</div></div>
+      <div style="text-align:right"><div style="font-weight:600">${esc(name||'')}</div><div style="color:#5d7488;font-size:13px">${esc(mn)}</div></div></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">${sc('Project management',p.project_mgmt)}${sc('Time management',p.time_mgmt)}${sc('Eager to learn',p.eager_to_learn)}</div>
+    <div style="text-align:center;margin-top:14px;font-family:'Corben',serif;font-size:16px">Overall average: <b>${avg}/10</b></div>
+    ${p.notes?`<div style="margin-top:18px"><div style="font-weight:600;margin-bottom:4px">Manager's notes</div><div style="color:#273545">${esc(p.notes)}</div></div>`:''}
+    <div style="margin-top:18px"><div style="font-weight:600;margin-bottom:6px">Attendance — ${esc(mn)}</div>
+      <div style="color:#273545;font-size:14px">Days present: <b>${s.days}</b> &nbsp;·&nbsp; On time: <b>${s.onTime}</b> &nbsp;·&nbsp; Needs improvement: <b>${s.needs}</b> &nbsp;·&nbsp; At risk: <b>${s.risk}</b>${s.pct!=null?` &nbsp;·&nbsp; Punctuality: <b>${s.pct}%</b>`:''}</div></div>
+    <div style="margin-top:28px;color:#92aabe;font-size:12px;border-top:1px solid #d8dddf;padding-top:10px">Generated from Fitma Workspace · ${new Date().toLocaleDateString()}</div>
+  </div>`;
+  setTimeout(()=>window.print(),120);
+};
 gate();
 </script>
 </body>
