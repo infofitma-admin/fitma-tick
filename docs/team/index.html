@@ -83,6 +83,10 @@ const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
 const initials=n=>(n||"?").split(/\s+/).map(w=>w[0]).join("").slice(0,2).toUpperCase();
 const fmtH=m=>{m=Math.max(0,Math.round(m||0));const h=Math.floor(m/60),mm=m%60;return h+"h"+(mm?" "+mm+"m":"");};
 const fmtDate=d=>new Date(d+"T00:00:00").toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
+// Punctuality per Fitma's rule: on time=at/before scheduled start; 1-5 min=Needs improvement; >5 min=At risk (even 1 min counts).
+function schedStart(dateStr,role,name){ if(role==='founder')return null; const fri=new Date(dateStr+"T00:00:00").getDay()===5; if(fri&&(role==='senior'||/azri/i.test(name||'')))return "09:30"; return "09:00"; }
+function lateMins(startStr,sched){ if(!startStr||!sched)return null; const p=s=>{const a=s.split(":");return (+a[0])*60+(+a[1]);}; return p(startStr)-p(sched); }
+function punct(lm){ if(lm==null)return{label:'—',cls:'muted'}; if(lm<=0)return{label:'On time',cls:'good'}; if(lm<=5)return{label:'Needs improvement',cls:'warn'}; return{label:'At risk',cls:'crit'}; }
 
 function gate(){
   const go=()=>{const pin=document.getElementById("pin").value.trim();if(pin){try{localStorage.setItem("fitma_pin",pin)}catch(e){}load(pin);}};
@@ -119,7 +123,7 @@ function render(d){
     const daysWorked=worked.length;
     const acts=rows.filter(r=>r.start_time&&r.activity_pct!=null).map(r=>r.activity_pct);
     const avgAct=acts.length?Math.round(acts.reduce((a,b)=>a+b,0)/acts.length):null;
-    const late=rows.filter(r=>r.is_late).length;
+    const late=rows.filter(r=>r.working_day&&r.start_time&&(lateMins(r.start_time,schedStart(r.work_date,m.role,m.name))||0)>0).length;
     const early=rows.filter(r=>r.is_left_early).length;
     const last=rows[rows.length-1];
     teamMin+=totalMin; lateTotal+=late; if(avgAct!=null) actAll.push(avgAct);
@@ -169,7 +173,7 @@ function render(d){
         <td>${r.end_time?esc(r.end_time):'<span class="muted">—</span>'}</td>
         <td class="n">${r.worked_minutes?fmtH(r.worked_minutes):'<span class="muted">—</span>'}</td>
         <td class="n">${r.activity_pct==null?'<span class="muted">—</span>':r.activity_pct+'%'}</td>
-        <td>${/Late/.test(r.status||'')?'<span class="pill crit">'+esc(r.status)+'</span>':/early/i.test(r.status||'')?'<span class="pill warn">'+esc(r.status)+'</span>':'<span class="pill good">'+esc(r.status||'—')+'</span>'}</td>
+        <td>${(()=>{ if(!r.working_day) return '<span class="muted">—</span>'; if(p.m.role==='founder') return '<span class="pill muted">manual</span>'; if(!r.start_time) return '<span class="pill crit">Absent</span>'; const pu=punct(lateMins(r.start_time,schedStart(r.work_date,p.m.role,p.m.name))); const e=r.is_left_early?' · left early':''; return '<span class="pill '+pu.cls+'">'+pu.label+'</span>'+e; })()}</td>
       </tr>`).join("")}
     </tbody></table></td>`;
     tr.onclick=()=>{det.hidden=!det.hidden;};
