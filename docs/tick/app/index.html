@@ -803,11 +803,13 @@ async function viewProjects(){
   if(isMgr()) app.querySelector("#topright").innerHTML=`<button class="btn pri sm" id="npbtn">+ Project</button>`;
   const {data:projs}=await sb.from("projects").select("*").eq("company_id",cid()).order("created_at",{ascending:false});
   const {data:tasks}=await sb.from("tasks").select("*").eq("company_id",cid()).order("created_at",{ascending:false});
-  const [{data:pmRows},{data:pmems}]=await Promise.all([
+  const [{data:pmRows},{data:pmems},{data:teData}]=await Promise.all([
     sb.from("project_members").select("project_id,user_id").eq("company_id",cid()),
-    sb.from("memberships").select("user_id,role").eq("company_id",cid()).eq("status","active")
+    sb.from("memberships").select("user_id,role").eq("company_id",cid()).eq("status","active"),
+    sb.from("time_entries").select("project_id,duration_sec").eq("company_id",cid()).not("project_id","is",null)
   ]);
   const assignBy={}; (pmRows||[]).forEach(r=>{(assignBy[r.project_id]=assignBy[r.project_id]||[]).push(r.user_id);});
+  const trackedBy={}; (teData||[]).forEach(e=>{trackedBy[e.project_id]=(trackedBy[e.project_id]||0)+(e.duration_sec||0);});
   const ppm=await profilesMap((pmems||[]).map(m=>m.user_id));
   const pNameOf=u=>ppm[u]||(u===state.user.id?"You":"Member");
   const tByP={}; (tasks||[]).forEach(t=>{(tByP[t.project_id||"none"]=tByP[t.project_id||"none"]||[]).push(t);});
@@ -815,6 +817,9 @@ async function viewProjects(){
   const c=content();
   if(!projs||!projs.length){c.innerHTML=`<div class="card"><div class="empty">${ICON.projects}<div>No projects yet.${isMgr()?' Create your first one.':''}</div></div></div>`;return;}
   c.innerHTML=projs.map(p=>{const ts=tByP[p.id]||[];const done=ts.filter(t=>t.status==='done').length;const asg=assignBy[p.id]||[];
+    const trkH=(trackedBy[p.id]||0)/3600; const budget=p.budget_hours?Number(p.budget_hours):0;
+    const bpct=budget?Math.min(100,Math.round(trkH/budget*100)):0; const over=budget&&trkH>budget;
+    const budgetBar=budget?`<div style="margin-top:10px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span class="muted">Budget</span><span class="tnum" style="font-weight:600${over?';color:var(--heart)':''}">${trkH.toFixed(1)} / ${budget} h${over?' · over':''}</span></div><div class="bar ${over?'unproductive':'productive'}"><i style="width:${budget?Math.min(100,Math.round(trkH/budget*100)):0}%"></i></div></div>`:'';
     const stack=asg.length?`<div style="display:flex;align-items:center" title="${esc(asg.map(pNameOf).join(', '))}">${asg.slice(0,4).map((u,i)=>`<div class="avatar" style="width:24px;height:24px;font-size:10px;border:2px solid var(--surface);${i?'margin-left:-8px':''}">${esc(initials(pNameOf(u)))}</div>`).join("")}${asg.length>4?`<span class="pill muted" style="margin-left:4px">+${asg.length-4}</span>`:''}</div>`:'<span class="faint" style="font-size:12.5px">No one assigned</span>';
     return `<div class="card" style="padding:16px 18px${p.archived?';opacity:.62':''}">
       <div class="sec-head"><div style="display:flex;align-items:center;gap:9px">
@@ -823,10 +828,12 @@ async function viewProjects(){
         <div class="row">${ts.length?`<span class="pill muted">${done}/${ts.length} done</span>`:''}
         ${isMgr()?`<button class="btn ghost sm" data-nt="${p.id}">+ Task</button><button class="kebab" data-ppid="${p.id}" title="Actions">${DOTS}</button>`:''}</div></div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:6px"><span class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Team</span>${stack}</div>
+      ${budgetBar}
       ${ts.length?`<div style="margin-top:10px;display:flex;flex-direction:column;gap:6px">
         ${ts.map(t=>`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--border)">
           <button class="task-check" data-tog="${t.id}" data-st="${t.status}" style="width:18px;height:18px;border-radius:5px;border:1.5px solid ${t.status==='done'?'var(--accent)':'var(--faint)'};background:${t.status==='done'?'var(--accent)':'transparent'};color:#fff;display:grid;place-items:center;padding:0">${t.status==='done'?'<svg width=11 height=11 viewBox="0 0 24 24" fill=none stroke=currentColor stroke-width=4><path d="M20 6 9 17l-5-5"/></svg>':''}</button>
           <span style="flex:1;${t.status==='done'?'text-decoration:line-through;color:var(--faint)':''}">${esc(t.title)}</span>
+          ${t.estimate_min?`<span class="pill muted" title="Estimated time">~${t.estimate_min>=60?(t.estimate_min/60).toFixed(t.estimate_min%60?1:0)+'h':t.estimate_min+'m'}</span>`:''}
           ${t.due_date?`<span class="pill ${new Date(t.due_date)<new Date()&&t.status!=='done'?'warn':'muted'}">${new Date(t.due_date).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span>`:''}
         </div>`).join("")}</div>`:`<p class="hint">No tasks in this project yet.</p>`}
     </div>`;}).join("");
@@ -849,11 +856,13 @@ function projectEditModal(p){
   showModal(`<h3 style="margin-bottom:14px">Edit project</h3>
     <div class="field"><label>Name</label><input id="p_name" value="${esc(p.name||'')}"></div>
     <div class="field"><label>Client (optional)</label><input id="p_client" value="${esc(p.client||'')}" placeholder="Acme Inc."></div>
-    <div class="field"><label>Colour</label><input id="p_color" type="color" value="${esc(p.color||'#4f46e5')}" style="height:40px;padding:4px"></div>
+    <div class="row" style="gap:10px"><div class="field" style="flex:1"><label>Colour</label><input id="p_color" type="color" value="${esc(p.color||'#4f46e5')}" style="height:40px;padding:4px"></div>
+      <div class="field" style="flex:1"><label>Budget (hours, optional)</label><input id="p_budget" type="number" min="0" step="0.5" value="${p.budget_hours!=null?Number(p.budget_hours):''}" placeholder="e.g. 40"></div></div>
     <div class="row" style="justify-content:flex-end"><button class="btn" onclick="window._closeModal()">Cancel</button><button class="btn pri" id="p_save">Save</button></div>`);
   document.getElementById("p_save").onclick=async()=>{
     const name=document.getElementById("p_name").value.trim();if(!name){alert2("Name required.");return;}
-    const {error}=await sb.from("projects").update({name,client:document.getElementById("p_client").value.trim()||null,color:document.getElementById("p_color").value}).eq("id",p.id);
+    const budget=parseFloat(document.getElementById("p_budget").value);
+    const {error}=await sb.from("projects").update({name,client:document.getElementById("p_client").value.trim()||null,color:document.getElementById("p_color").value,budget_hours:budget>0?budget:null}).eq("id",p.id);
     if(error){alert2(error.message);return;}_closeModal();loadView("projects");
   };
 }
@@ -893,22 +902,26 @@ function projectModal(){
   showModal(`<h3 style="margin-bottom:14px">New project</h3>
     <div class="field"><label>Name</label><input id="p_name" placeholder="Website redesign"></div>
     <div class="field"><label>Client (optional)</label><input id="p_client" placeholder="Acme Inc."></div>
-    <div class="field"><label>Colour</label><input id="p_color" type="color" value="#4f46e5" style="height:40px;padding:4px"></div>
+    <div class="row" style="gap:10px"><div class="field" style="flex:1"><label>Colour</label><input id="p_color" type="color" value="#4f46e5" style="height:40px;padding:4px"></div>
+      <div class="field" style="flex:1"><label>Budget (hours, optional)</label><input id="p_budget" type="number" min="0" step="0.5" placeholder="e.g. 40"></div></div>
     <div class="row" style="justify-content:flex-end"><button class="btn" onclick="window._closeModal()">Cancel</button><button class="btn pri" id="p_save">Create</button></div>`);
   document.getElementById("p_save").onclick=async()=>{
     const name=document.getElementById("p_name").value.trim();if(!name){alert2("Name required.");return;}
-    const {error}=await sb.from("projects").insert({company_id:cid(),name,client:document.getElementById("p_client").value.trim()||null,color:document.getElementById("p_color").value});
+    const budget=parseFloat(document.getElementById("p_budget").value);
+    const {error}=await sb.from("projects").insert({company_id:cid(),name,client:document.getElementById("p_client").value.trim()||null,color:document.getElementById("p_color").value,budget_hours:budget>0?budget:null});
     if(error){alert2(error.message);return;}_closeModal();loadView("projects");
   };
 }
 function taskModal(pid){
   showModal(`<h3 style="margin-bottom:14px">New task</h3>
     <div class="field"><label>Title</label><input id="t_title" placeholder="Design the home page"></div>
-    <div class="field"><label>Due date (optional)</label><input id="t_due" type="date"></div>
+    <div class="row" style="gap:10px"><div class="field" style="flex:1"><label>Due date (optional)</label><input id="t_due" type="date"></div>
+      <div class="field" style="flex:1"><label>Estimate (hours, optional)</label><input id="t_est" type="number" min="0" step="0.25" placeholder="e.g. 2"></div></div>
     <div class="row" style="justify-content:flex-end"><button class="btn" onclick="window._closeModal()">Cancel</button><button class="btn pri" id="t_save">Add task</button></div>`);
   document.getElementById("t_save").onclick=async()=>{
     const title=document.getElementById("t_title").value.trim();if(!title){alert2("Title required.");return;}
-    const {error}=await sb.from("tasks").insert({company_id:cid(),project_id:pid,title,due_date:document.getElementById("t_due").value||null});
+    const estH=parseFloat(document.getElementById("t_est").value);
+    const {error}=await sb.from("tasks").insert({company_id:cid(),project_id:pid,title,due_date:document.getElementById("t_due").value||null,estimate_min:estH>0?Math.round(estH*60):null});
     if(error){alert2(error.message);return;}_closeModal();loadView("projects");
   };
 }
