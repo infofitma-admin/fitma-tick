@@ -851,6 +851,9 @@ async function viewShots(){
   let q=sb.from("screenshots").select("id,user_id,captured_at,storage_path,thumb_path,activity_pct,blurred").eq("company_id",cid()).gte("captured_at",from.toISOString()).lt("captured_at",to.toISOString()).order("captured_at",{ascending:false}).limit(240);
   if(shotsState.user!=="all") q=q.eq("user_id",shotsState.user);
   const {data:rows}=await q;
+  const _acts=(rows||[]).map(r=>r.activity_pct).filter(v=>v!=null);
+  const avgAct=_acts.length?Math.round(_acts.reduce((a,b)=>a+b,0)/_acts.length):null;
+  const actPill=a=>a==null?'muted':a>=75?'good':a>=40?'warn':'muted';
   const urlMap={}; const paths=(rows||[]).map(r=>r.thumb_path||r.storage_path).filter(Boolean);
   if(paths.length){ try{ const {data:signed}=await sb.storage.from("screenshots").createSignedUrls(paths,3600); (signed||[]).forEach(s=>{if(s&&s.signedUrl)urlMap[s.path]=s.signedUrl;}); }catch(e){} }
   const prettyDay=from.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',year:'numeric'});
@@ -863,11 +866,12 @@ async function viewShots(){
        <button class="btn sm" id="nday" ${isToday?'disabled':''}>›</button>
        <span class="muted" style="font-size:13px">${prettyDay}</span>
        ${isMgr()?`<select id="suser" style="margin-left:auto;padding:8px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2);color:var(--fg)"><option value="all">All members</option>${(mems||[]).map(m=>`<option value="${m.user_id}" ${shotsState.user===m.user_id?'selected':''}>${esc(nameOf(m.user_id))}</option>`).join("")}</select>`:''}
-       <span class="pill muted"${isMgr()?'':' style="margin-left:auto"'}>${(rows||[]).length} shot(s)</span>
+       <span class="pill ${actPill(avgAct)}"${isMgr()?'':' style="margin-left:auto"'} title="Average activity across these shots">Avg activity ${avgAct==null?'—':avgAct+'%'}</span>
+       <span class="pill muted">${(rows||[]).length} shot(s)</span>
      </div>
    </div>
    ${(rows||[]).length?`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(210px,1fr))">
-     ${rows.map(s=>{const u=urlMap[s.thumb_path||s.storage_path]||"";return `<div class="card" style="overflow:hidden;cursor:pointer" data-shot="${esc(u)}" data-meta="${esc(nameOf(s.user_id)+' · '+new Date(s.captured_at).toLocaleString())}">
+     ${rows.map(s=>{const u=urlMap[s.thumb_path||s.storage_path]||"";return `<div class="card" style="overflow:hidden;cursor:pointer" data-shot="${esc(u)}" data-meta="${esc(nameOf(s.user_id)+' · '+new Date(s.captured_at).toLocaleString()+(s.activity_pct!=null?' · '+s.activity_pct+'% activity':''))}">
        <div style="aspect-ratio:16/10;background:var(--surface-2);background-size:cover;background-position:center top;${u?`background-image:url('${u}')`:''}"></div>
        <div style="padding:8px 11px;display:flex;align-items:center;justify-content:space-between;gap:8px">
          <div style="min-width:0"><div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(nameOf(s.user_id))}</div>
