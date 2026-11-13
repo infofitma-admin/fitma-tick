@@ -136,6 +136,8 @@ tr:last-child td{border-bottom:none}
 .bar>i{display:block;height:100%;border-radius:4px;background:var(--accent)}
 .bar.productive>i{background:var(--good)}
 .bar.unproductive>i{background:var(--heart)}
+.pulse{width:9px;height:9px;border-radius:50%;background:var(--good);flex:none;animation:pulsering 1.8s infinite}
+@keyframes pulsering{0%{box-shadow:0 0 0 0 rgba(45,160,90,.45)}70%{box-shadow:0 0 0 7px rgba(45,160,90,0)}100%{box-shadow:0 0 0 0 rgba(45,160,90,0)}}
 .timer-box{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .timer-clock{font-family:var(--fh);font-size:30px;font-weight:600;font-variant-numeric:tabular-nums}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--crit);display:inline-block}
@@ -482,18 +484,25 @@ function activityRing(pct){
   const r=13,circ=2*Math.PI*r,off=circ*(1-Math.max(0,Math.min(100,pct))/100);
   return `<svg width="34" height="34" viewBox="0 0 34 34" style="vertical-align:middle"><circle cx="17" cy="17" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="4"/><circle cx="17" cy="17" r="${r}" fill="none" stroke="${col}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 17 17)"/><text x="17" y="21" text-anchor="middle" font-size="10" font-weight="700" fill="var(--fg)" font-family="var(--ff)">${pct}</text></svg>`;
 }
+let liveTick=null;
 async function viewOverview(){
   const todayISO=startOfToday(), wkISO=startOfWeek();
   const lastWkISO=new Date(new Date(wkISO).getTime()-7*864e5).toISOString();
   const yISO=new Date(new Date(todayISO).getTime()-864e5).toISOString();
-  const [{data:mems},{data:ents},{data:projs},{data:shots}]=await Promise.all([
+  const since18h=new Date(Date.now()-18*3600e3).toISOString();
+  const [{data:mems},{data:ents},{data:projs},{data:shots},{data:openEnts}]=await Promise.all([
     sb.from("memberships").select("user_id,role").eq("company_id",cid()).eq("status","active"),
     sb.from("time_entries").select("user_id,duration_sec,started_at").eq("company_id",cid()).gte("started_at",lastWkISO),
-    sb.from("projects").select("id").eq("company_id",cid()).eq("archived",false),
-    sb.from("screenshots").select("user_id,activity_pct,captured_at").eq("company_id",cid()).gte("captured_at",todayISO)
+    sb.from("projects").select("id,name").eq("company_id",cid()).eq("archived",false),
+    sb.from("screenshots").select("user_id,activity_pct,captured_at").eq("company_id",cid()).gte("captured_at",todayISO),
+    sb.from("time_entries").select("user_id,started_at,project_id").eq("company_id",cid()).is("ended_at",null).gte("started_at",since18h)
   ]);
   const pm=await profilesMap((mems||[]).map(m=>m.user_id));
   const nameOf=u=>pm[u]||(u===state.user.id?(state.user.user_metadata?.full_name||"You"):"Member");
+  const projNm={}; (projs||[]).forEach(p=>projNm[p.id]=p.name);
+  // one live session per user (the most recent open entry)
+  const liveBy={}; (openEnts||[]).forEach(e=>{ if(!liveBy[e.user_id]||e.started_at>liveBy[e.user_id].started_at) liveBy[e.user_id]=e; });
+  const liveUsers=Object.keys(liveBy).sort((a,b)=>liveBy[a].started_at.localeCompare(liveBy[b].started_at));
   let pendMT=0,pendTO=0;
   if(isMgr()){
     const [{count:a},{count:b}]=await Promise.all([
@@ -528,6 +537,14 @@ async function viewOverview(){
        ${pendMT?`<a href="#" onclick="window.loadView('timesheet');return false" class="pill warn" style="text-decoration:none">${pendMT} manual time to approve</a>`:''}
        ${pendTO?`<a href="#" onclick="window.loadView('timeoff');return false" class="pill warn" style="text-decoration:none">${pendTO} time-off request${pendTO>1?'s':''}</a>`:''}
      </div></div>`:''}
+   ${liveUsers.length?`<div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Tracking now</h3><span class="pill good">${liveUsers.length} live</span></div>
+     <div style="display:flex;flex-direction:column">
+     ${liveUsers.map(u=>{const e=liveBy[u];const nm=nameOf(u);return `<div style="display:flex;align-items:center;gap:11px;padding:10px 18px;border-top:1px solid var(--border)">
+       <span class="pulse"></span>
+       <div class="avatar" style="width:30px;height:30px;font-size:11px">${esc(initials(nm))}</div>
+       <div style="flex:1;min-width:0"><div style="font-weight:600">${esc(nm)}</div><div class="muted" style="font-size:12px">${e.project_id?esc(projNm[e.project_id]||'Project'):'No project'} · since ${new Date(e.started_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div></div>
+       <div class="tnum" style="font-weight:700;font-family:var(--fh)" data-elapsed="${e.started_at}">0m</div></div>`;}).join("")}
+     </div></div>`:''}
    <div class="card">
      <div class="sec-head" style="padding:16px 18px 10px"><h3>Today's activity</h3><span class="pill muted">${new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</span></div>
      ${members.length?`<table><thead><tr><th>Member</th><th>Role</th><th>Started</th><th style="text-align:center">Activity</th><th class="tnum" style="text-align:right">Tracked</th></tr></thead><tbody>
@@ -548,6 +565,12 @@ async function viewOverview(){
            <td class="tnum" style="text-align:right;font-weight:600">${fmtDur(s)}</td></tr>`;}).join("")}
      </tbody></table>`:""}
    </div>`;
+  clearInterval(liveTick);
+  if(liveUsers.length){
+    const updLive=()=>document.querySelectorAll("[data-elapsed]").forEach(el=>{el.textContent=fmtDur((Date.now()-new Date(el.dataset.elapsed).getTime())/1000);});
+    updLive();
+    liveTick=setInterval(()=>{ if(!document.querySelector("[data-elapsed]")){clearInterval(liveTick);return;} updLive(); },30000);
+  }
 }
 
 /* =================== TIMESHEET (web timer) =================== */
