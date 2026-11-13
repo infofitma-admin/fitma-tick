@@ -1025,10 +1025,11 @@ async function viewReports(){
   const pro=planAtLeast("pro"); const proOnly={attendance:1,apps:1};
   const tabs=[["hours","Tracked hours"],["timesheet","Timesheet"],["attendance","Attendance"],["apps","Apps & websites"]];
   const mgr=isMgr();
-  // member + project lists up front so the filters can be populated
-  const [{data:mems},{data:projs}]=await Promise.all([
+  // member + project lists (and assignments) up front so the filters can be populated
+  const [{data:mems},{data:projs},{data:asgRows}]=await Promise.all([
     sb.from("memberships").select("user_id,role").eq("company_id",cid()).eq("status","active"),
-    sb.from("projects").select("id,name").eq("company_id",cid()).order("name")
+    sb.from("projects").select("id,name").eq("company_id",cid()).order("name"),
+    sb.from("project_members").select("project_id,user_id").eq("company_id",cid())
   ]);
   const pm=await profilesMap((mems||[]).map(m=>m.user_id));
   const nameOf=u=>pm[u]||(u===state.user.id?(state.user.user_metadata?.full_name||"You"):"Member");
@@ -1036,6 +1037,13 @@ async function viewReports(){
   const memList=(mems||[]).map(m=>m.user_id).sort((a,b)=>nameOf(a).localeCompare(nameOf(b)));
   // non-managers only ever see themselves — lock the member filter to them
   if(!mgr) reportsState.member=state.user.id;
+  // assignment map: which projects each member is on → lets the project filter follow the member
+  const projsByUser={}; (asgRows||[]).forEach(r=>{(projsByUser[r.user_id]=projsByUser[r.user_id]||new Set()).add(r.project_id);});
+  // when one member is picked, the project list narrows to that member's assigned projects
+  const memberHasAssignments=reportsState.member!=="all"&&projsByUser[reportsState.member]&&projsByUser[reportsState.member].size>0;
+  const projOptions=memberHasAssignments?(projs||[]).filter(p=>projsByUser[reportsState.member].has(p.id)):(projs||[]);
+  // if the chosen project is no longer selectable under the current member, fall back to All
+  if(reportsState.project!=="all"&&reportsState.project!=="__none"&&memberHasAssignments&&!projsByUser[reportsState.member].has(reportsState.project)) reportsState.project="all";
   const showProj=reportsState.tab!=="apps";
   const showGroup=reportsState.tab==="hours";
   const custom=reportsState.range==="custom";
@@ -1046,7 +1054,7 @@ async function viewReports(){
        <div class="tabs" style="margin:0;flex:0 1 auto;flex-wrap:wrap">${tabs.map(([k,l])=>`<button data-rt="${k}" class="${reportsState.tab===k?'on':''}">${l}${proOnly[k]&&!pro?' \u{1F512}':''}</button>`).join("")}</div>
        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-left:auto">
          ${mgr?`<select id="rmember" class="filt" title="Member"><option value="all">All members</option>${memList.map(u=>`<option value="${u}" ${reportsState.member===u?'selected':''}>${esc(nameOf(u))}</option>`).join("")}</select>`:''}
-         ${showProj?`<select id="rproject" class="filt" title="Project"><option value="all">All projects</option><option value="__none" ${reportsState.project==="__none"?'selected':''}>No project</option>${(projs||[]).map(p=>`<option value="${p.id}" ${reportsState.project===p.id?'selected':''}>${esc(p.name)}</option>`).join("")}</select>`:''}
+         ${showProj?`<select id="rproject" class="filt" title="${memberHasAssignments?nameOf(reportsState.member)+"’s projects":"Project"}"><option value="all">${memberHasAssignments?"Their projects":"All projects"}</option><option value="__none" ${reportsState.project==="__none"?'selected':''}>No project</option>${projOptions.map(p=>`<option value="${p.id}" ${reportsState.project===p.id?'selected':''}>${esc(p.name)}</option>`).join("")}</select>`:''}
          ${showGroup?`<select id="rgroup" class="filt" title="Group by"><option value="member" ${reportsState.group==="member"?'selected':''}>Group: Member</option><option value="project" ${reportsState.group==="project"?'selected':''}>Group: Project</option><option value="date" ${reportsState.group==="date"?'selected':''}>Group: Day</option></select>`:''}
          <select id="rrange" class="filt" title="Date range">
            <option value="today">Today</option><option value="week">This week</option><option value="month">This month</option><option value="last7">Last 7 days</option><option value="last30">Last 30 days</option><option value="custom">Custom…</option></select>
