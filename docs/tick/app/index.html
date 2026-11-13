@@ -1328,16 +1328,21 @@ async function viewReports(){
     E.forEach(e=>{const u=e.user_id;const st=new Date(e.started_at);const dk=dkey(st);att[u]=att[u]||{};const cell=att[u][dk]||{first:null,last:null,sec:0};
       if(!cell.first||st<cell.first)cell.first=st;const en=e.ended_at?new Date(e.ended_at):st;if(!cell.last||en>cell.last)cell.last=en;cell.sec+=(e.duration_sec||0);att[u][dk]=cell;});
     const days=daysBetween(from,to);
+    // idle / away time per member over the range
+    let idleq=sb.from("idle_periods").select("user_id,duration_sec").eq("company_id",cid()).gte("started_at",fromISO).lte("started_at",toISO);
+    if(reportsState.member!=="all") idleq=idleq.eq("user_id",reportsState.member);
+    const {data:idleRows}=await idleq;
+    const idleBy={}; (idleRows||[]).forEach(r=>{idleBy[r.user_id]=(idleBy[r.user_id]||0)+(r.duration_sec||0);});
     const summary=members.map(u=>{const ds=Object.values(att[u]||{});const present=ds.length;const totSec=ds.reduce((s,x)=>s+x.sec,0);
       const starts=ds.map(x=>x.first.getHours()*60+x.first.getMinutes()).filter(x=>x!=null);const avgStart=starts.length?Math.round(starts.reduce((a,b)=>a+b,0)/starts.length):null;
-      return {u,present,totSec,avgStart};}).sort((a,b)=>b.present-a.present);
+      return {u,present,totSec,avgStart,idleSec:idleBy[u]||0};}).sort((a,b)=>b.present-a.present);
     const hhmm=m=>m==null?"—":String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
-    _reportExport={name:`attendance-${dkey(from)}.csv`,title:`Attendance — ${rangeLabel}`,sub:`${days.length} day(s)`,rows:[["Member","Days present","Avg start","Total hours"]].concat(summary.map(r=>[nameOf(r.u),r.present,hhmm(r.avgStart),hrs(r.totSec).toFixed(2)]))};
+    _reportExport={name:`attendance-${dkey(from)}.csv`,title:`Attendance — ${rangeLabel}`,sub:`${days.length} day(s)`,rows:[["Member","Days present","Avg start","Total hours","Idle time"]].concat(summary.map(r=>[nameOf(r.u),r.present,hhmm(r.avgStart),hrs(r.totSec).toFixed(2),hrs(r.idleSec).toFixed(2)]))};
     body.innerHTML=`<div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Attendance</h3><span class="muted" style="font-size:13px">${rangeLabel} · ${days.length} day(s)</span></div>
-      <table><thead><tr><th>Member</th><th class="tnum" style="text-align:right">Days present</th><th class="tnum" style="text-align:right">Avg start</th><th class="tnum" style="text-align:right">Total hours</th></tr></thead><tbody>
+      <div style="overflow-x:auto"><table><thead><tr><th>Member</th><th class="tnum" style="text-align:right">Days present</th><th class="tnum" style="text-align:right">Avg start</th><th class="tnum" style="text-align:right">Idle / away</th><th class="tnum" style="text-align:right">Total hours</th></tr></thead><tbody>
       ${summary.map(r=>`<tr><td><div style="display:flex;align-items:center;gap:9px"><div class="avatar" style="width:26px;height:26px;font-size:11px">${esc(initials(nameOf(r.u)))}</div>${esc(nameOf(r.u))}</div></td>
-        <td class="tnum" style="text-align:right">${r.present}</td><td class="tnum" style="text-align:right">${hhmm(r.avgStart)}</td><td class="tnum" style="text-align:right;font-weight:600">${fmtDur(r.totSec)}</td></tr>`).join("")}
-      </tbody></table><p class="hint" style="padding:10px 18px">Start-time rules (on-time vs late) arrive with company work-schedule settings, so no one is ever marked late by mistake.</p></div>`;
+        <td class="tnum" style="text-align:right">${r.present}</td><td class="tnum" style="text-align:right">${hhmm(r.avgStart)}</td><td class="tnum" style="text-align:right;${r.idleSec>0?'color:var(--muted)':''}">${r.idleSec>0?fmtDur(r.idleSec):'—'}</td><td class="tnum" style="text-align:right;font-weight:600">${fmtDur(r.totSec)}</td></tr>`).join("")}
+      </tbody></table></div><p class="hint" style="padding:10px 18px">“Idle / away” is time the tracker detected no keyboard or mouse (it isn’t counted in total hours). Start-time rules arrive with company work-schedule settings.</p></div>`;
     return;
   }
 }
