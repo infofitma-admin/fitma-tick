@@ -87,6 +87,8 @@ const T = {
   siteTimer: null,
   events: [],             // session events (start/break/resume/stop/idle) pending upload
   acts: [],               // app/site samples pending upload
+  idles: [],              // completed idle/away periods pending upload
+  idleStartMs: 0,         // ms, when the current idle (away) period began (0 = not idle)
   lastSiteKey: '',        // de-dupe consecutive identical samples
   sitesToday: 0,
   aiToday: 0,
@@ -139,6 +141,23 @@ async function flushActs() {
   try {
     await apiPost({ action: 'activity', deviceToken: cfg.deviceToken, items: batch });
     T.acts.splice(0, batch.length);
+  } catch (e) { /* keep buffered */ }
+}
+
+// Record a completed idle/away period (the stretch with no keyboard or mouse).
+function recordIdle(startMs, endMs) {
+  T.idleStartMs = 0;
+  if (!startMs || endMs - startMs < 60 * 1000) return; // ignore tiny gaps
+  T.idles.push({ start: new Date(startMs).toISOString(), end: new Date(endMs).toISOString(), project: T.project || '' });
+  if (T.idles.length > MAX_BUFFER) T.idles.splice(0, T.idles.length - MAX_BUFFER);
+  flushIdles();
+}
+async function flushIdles() {
+  if (!T.idles.length || !cfg.deviceToken) return;
+  const batch = T.idles.slice();
+  try {
+    await apiPost({ action: 'idle', deviceToken: cfg.deviceToken, items: batch });
+    T.idles.splice(0, batch.length);
   } catch (e) { /* keep buffered */ }
 }
 
@@ -215,12 +234,14 @@ function tick() {
     if (!T.paused && T.segStart) {
       const idleStartMs = Date.now() - idle * 1000;
       flushSegment(Math.max(T.segStart, idleStartMs));
+      T.idleStartMs = idleStartMs;   // remember when the away period began
       logEvent('idle');   // record that they went away (no input)
     }
     T.paused = true;
   } else {
     if (T.paused) {
-      // user is back: resume with a fresh segment
+      // user is back: record how long they were away, then resume a fresh segment
+      recordIdle(T.idleStartMs, Date.now());
       T.paused = false;
       T.segStart = Date.now();
       T.lastSiteKey = '';
@@ -252,7 +273,7 @@ function startTracking(project) {
   T.lastSiteKey = '';
   T.flushTimer = setInterval(() => {
     if (T.tracking && !T.paused && !T.manualPaused && T.segStart) flushSegment(Date.now());
-    flushEvents(); flushActs();
+    flushEvents(); flushActs(); flushIdles();
   }, FLUSH_MS);
   T.tickTimer = setInterval(tick, 1000);
   T.siteTimer = setInterval(sampleSite, SITE_SAMPLE_MS);
@@ -266,10 +287,12 @@ async function stopTracking() {
   clearInterval(T.flushTimer); clearInterval(T.tickTimer); clearInterval(T.siteTimer);
   T.flushTimer = T.tickTimer = T.siteTimer = null;
   const wasOpen = T.segStart;
+  if (T.paused && T.idleStartMs) recordIdle(T.idleStartMs, Date.now()); // close an open away period
   T.tracking = false; T.paused = false; T.manualPaused = false;
   if (wasOpen) await flushSegment(Date.now());
   T.segStart = 0;
   logEvent('stop');             // record exactly when they stopped (and left)
+  await flushIdles();
   await flushActs();            // send any remaining site samples
   updateTray(); pushState();
 }

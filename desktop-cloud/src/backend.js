@@ -178,6 +178,24 @@ function createApi({ getSession, setSession }) {
     return {};
   }
 
+  async function idle(items) {
+    const s = await ensureFresh(false);
+    const rows = (items || []).map((it) => ({
+      company_id: s.company_id,
+      user_id: s.user_id,
+      started_at: it.start,
+      ended_at: it.end,
+      duration_sec: Math.max(0, Math.round((new Date(it.end) - new Date(it.start)) / 1000))
+    })).filter((r) => r.duration_sec > 0);
+    if (!rows.length) return {};
+    const r = await authed((ss) => fetch(SUPABASE_URL + '/rest/v1/idle_periods', {
+      method: 'POST', headers: authHeaders(ss, { 'content-type': 'application/json', Prefer: 'return=minimal' }),
+      body: JSON.stringify(rows)
+    }).then(asJson));
+    if (!r.ok) throw new Error((r.body && r.body.message) || ('Could not save idle (' + r.status + ')'));
+    return {};
+  }
+
   // The dispatcher the app calls in place of its old apiPost().
   async function call(payload) {
     switch (payload.action) {
@@ -186,6 +204,7 @@ function createApi({ getSession, setSession }) {
       case 'ingest':     return ingest(payload.entries);
       case 'screenshot': return screenshot(payload.image, payload.ts, payload.activity);
       case 'activity':   return activity(payload.items);
+      case 'idle':       return idle(payload.items);
       case 'settings':   return companySettings();
       case 'events':     return {}; // session events are a workspace-only feature for now
       default:           return {};
