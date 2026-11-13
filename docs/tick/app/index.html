@@ -540,11 +540,19 @@ async function viewOverview(){
 /* =================== TIMESHEET (web timer) =================== */
 let timer={running:false,startedAt:null,projectId:null,taskId:null,tick:null,entryId:null};
 async function viewTimesheet(){
-  const [{data:projs},{data:entries}]=await Promise.all([
+  const mgr=isMgr(); const me=state.user.id;
+  const [{data:projs},{data:entries},{data:mreqs}]=await Promise.all([
     sb.from("projects").select("id,name").eq("company_id",cid()).eq("archived",false).order("name"),
-    sb.from("time_entries").select("*").eq("company_id",cid()).eq("user_id",state.user.id).order("started_at",{ascending:false}).limit(25)
+    sb.from("time_entries").select("*").eq("company_id",cid()).eq("user_id",me).order("started_at",{ascending:false}).limit(25),
+    sb.from("manual_time_requests").select("*").eq("company_id",cid()).order("created_at",{ascending:false}).limit(80)
   ]);
   const pmap={}; (projs||[]).forEach(p=>pmap[p.id]=p.name);
+  const reqs=mreqs||[];
+  const pendingReq=mgr?reqs.filter(r=>r.status==="pending"):[];
+  const myReqs=reqs.filter(r=>r.user_id===me);
+  const myOpen=myReqs.filter(r=>r.status!=="approved");
+  const rpm=await profilesMap(reqs.map(r=>r.user_id));
+  const reqName=u=>rpm[u]||(u===me?"You":"Member");
   const c=content();
   c.innerHTML=`
    <div class="card" style="padding:18px">
@@ -560,6 +568,19 @@ async function viewTimesheet(){
      </div>
      <p class="hint">A built-in web timer so you can track right here. The desktop app adds automatic screenshots & activity.</p>
    </div>
+   ${pendingReq.length?`<div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Manual time to approve</h3><span class="pill warn">${pendingReq.length}</span></div>
+     <div style="overflow-x:auto"><table><thead><tr><th>Member</th><th>Date</th><th>Project</th><th class="tnum" style="text-align:right">Duration</th><th>Reason</th><th></th></tr></thead><tbody>
+     ${pendingReq.map(r=>`<tr><td>${esc(reqName(r.user_id))}</td><td style="white-space:nowrap">${fmtDate(r.work_date)}</td><td>${r.project_id?esc(pmap[r.project_id]||'Project'):'<span class="muted">—</span>'}</td>
+       <td class="tnum" style="text-align:right;font-weight:600">${fmtDur(r.duration_sec)}</td><td class="muted" style="font-size:13px">${r.note?esc(r.note):'—'}</td>
+       <td style="text-align:right;white-space:nowrap"><button class="btn acc sm" data-appr="${r.id}">Approve</button> <button class="btn ghost sm" data-rej="${r.id}">Reject</button></td></tr>`).join("")}
+     </tbody></table></div></div>`:''}
+   ${myOpen.length?`<div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Your manual time requests</h3></div>
+     <div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Project</th><th class="tnum" style="text-align:right">Duration</th><th>Reason</th><th>Status</th><th></th></tr></thead><tbody>
+     ${myOpen.map(r=>`<tr><td style="white-space:nowrap">${fmtDate(r.work_date)}</td><td>${r.project_id?esc(pmap[r.project_id]||'Project'):'<span class="muted">—</span>'}</td>
+       <td class="tnum" style="text-align:right;font-weight:600">${fmtDur(r.duration_sec)}</td><td class="muted" style="font-size:13px">${r.note?esc(r.note):'—'}</td>
+       <td><span class="pill ${r.status==='rejected'?'crit':'warn'}">${esc(r.status)}</span></td>
+       <td style="text-align:right">${r.status==='pending'?`<button class="btn ghost sm" data-wd="${r.id}">Withdraw</button>`:`<button class="btn ghost sm" data-rmreq="${r.id}">Remove</button>`}</td></tr>`).join("")}
+     </tbody></table></div></div>`:''}
    <div class="card">
      <div class="sec-head" style="padding:16px 18px 10px"><h3>Recent entries</h3></div>
      <div id="entries"></div>
@@ -568,6 +589,10 @@ async function viewTimesheet(){
   enhanceSelects(c);
   c.querySelector("#tbtn").onclick=()=>timer.running?stopTimer():startTimer();
   c.querySelector("#manualbtn").onclick=()=>manualEntry(projs||[]);
+  c.querySelectorAll("[data-appr]").forEach(b=>b.onclick=async()=>{b.disabled=true;const {error}=await sb.rpc("approve_manual_time",{p_id:b.dataset.appr});if(error){alert2(error.message);b.disabled=false;return;}loadView("timesheet");});
+  c.querySelectorAll("[data-rej]").forEach(b=>b.onclick=async()=>{b.disabled=true;await sb.from("manual_time_requests").update({status:"rejected",decided_by:me,decided_at:new Date().toISOString()}).eq("id",b.dataset.rej);loadView("timesheet");});
+  c.querySelectorAll("[data-wd]").forEach(b=>b.onclick=async()=>{b.disabled=true;await sb.from("manual_time_requests").delete().eq("id",b.dataset.wd);loadView("timesheet");});
+  c.querySelectorAll("[data-rmreq]").forEach(b=>b.onclick=async()=>{b.disabled=true;await sb.from("manual_time_requests").delete().eq("id",b.dataset.rmreq);loadView("timesheet");});
   renderEntries(entries||[],pmap);
 }
 function renderEntries(entries,pmap){
@@ -579,7 +604,7 @@ function renderEntries(entries,pmap){
       <td>${e.project_id?esc(pmap[e.project_id]||"Project"):'<span class="muted">—</span>'}</td>
       <td class="tnum">${d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}</td>
       <td class="tnum" style="font-weight:600">${fmtDur(e.duration_sec)}</td>
-      <td><span class="pill muted">${esc(e.source)}</span></td>
+      <td><span class="pill muted"${e.note?` title="${esc(e.note)}"`:''}>${esc(e.source)}</span>${e.note?` <span class="muted" style="font-size:12px">· ${esc(e.note)}</span>`:''}</td>
       <td style="text-align:right"><button class="btn ghost sm" data-del="${e.id}">Delete</button></td></tr>`;}).join("")}
   </tbody></table>`;
   el.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{b.disabled=true;await sb.from("time_entries").delete().eq("id",b.dataset.del);loadView("timesheet");});
@@ -603,19 +628,33 @@ async function stopTimer(){
   timer.entryId=null;loadView("timesheet");
 }
 function manualEntry(projs){
-  showModal(`<h3 style="margin-bottom:14px">Add time manually</h3>
+  const mgr=isMgr();
+  showModal(`<h3 style="margin-bottom:4px">Add time manually</h3>
+    <p class="muted" style="margin:0 0 14px">${mgr?'Added straight to your timesheet.':'Sent to a manager for approval before it counts.'}</p>
+    <div id="m_msg"></div>
     <div class="field"><label>Project</label><select id="m_proj"><option value="">No project</option>${projs.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select></div>
-    <div class="row"><div class="field" style="flex:1"><label>Date</label><input id="m_date" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+    <div class="row"><div class="field" style="flex:1"><label>Date</label><input id="m_date" type="date" value="${new Date().toISOString().slice(0,10)}" max="${new Date().toISOString().slice(0,10)}"></div>
       <div class="field" style="flex:1"><label>Hours</label><input id="m_h" type="number" min="0" max="24" value="1"></div>
       <div class="field" style="flex:1"><label>Minutes</label><input id="m_m" type="number" min="0" max="59" value="0"></div></div>
+    <div class="field"><label>Reason${mgr?' (optional)':''}</label><input id="m_note" placeholder="e.g. Client call not tracked on the timer"></div>
     <div class="row" style="justify-content:flex-end;margin-top:6px"><button class="btn" onclick="window._closeModal()">Cancel</button>
-      <button class="btn pri" id="m_save">Add entry</button></div>`);
+      <button class="btn pri" id="m_save">${mgr?'Add entry':'Send for approval'}</button></div>`);
   document.getElementById("m_save").onclick=async()=>{
     const date=document.getElementById("m_date").value;
     const dur=(+document.getElementById("m_h").value*3600)+(+document.getElementById("m_m").value*60);
-    if(!date||dur<=0){alert2("Enter a date and a duration.");return;}
-    const start=new Date(date+"T09:00:00");
-    await sb.from("time_entries").insert({company_id:cid(),user_id:state.user.id,project_id:document.getElementById("m_proj").value||null,started_at:start.toISOString(),ended_at:new Date(start.getTime()+dur*1000).toISOString(),duration_sec:dur,source:"manual"});
+    const note=document.getElementById("m_note").value.trim()||null;
+    if(!date||dur<=0){document.getElementById("m_msg").innerHTML=`<div class="msg err">Enter a date and a duration.</div>`;return;}
+    if(!mgr&&!note){document.getElementById("m_msg").innerHTML=`<div class="msg err">Add a short reason so your manager can approve it.</div>`;return;}
+    const proj=document.getElementById("m_proj").value||null;
+    const btn=document.getElementById("m_save");btn.disabled=true;btn.textContent="Saving…";
+    let error;
+    if(mgr){
+      const start=new Date(date+"T09:00:00");
+      ({error}=await sb.from("time_entries").insert({company_id:cid(),user_id:state.user.id,project_id:proj,started_at:start.toISOString(),ended_at:new Date(start.getTime()+dur*1000).toISOString(),duration_sec:dur,source:"manual",note}));
+    }else{
+      ({error}=await sb.from("manual_time_requests").insert({company_id:cid(),user_id:state.user.id,project_id:proj,work_date:date,duration_sec:dur,note}));
+    }
+    if(error){btn.disabled=false;btn.textContent=mgr?'Add entry':'Send for approval';document.getElementById("m_msg").innerHTML=`<div class="msg err">${esc(error.message)}</div>`;return;}
     _closeModal();loadView("timesheet");
   };
 }
