@@ -494,6 +494,14 @@ async function viewOverview(){
   ]);
   const pm=await profilesMap((mems||[]).map(m=>m.user_id));
   const nameOf=u=>pm[u]||(u===state.user.id?(state.user.user_metadata?.full_name||"You"):"Member");
+  let pendMT=0,pendTO=0;
+  if(isMgr()){
+    const [{count:a},{count:b}]=await Promise.all([
+      sb.from("manual_time_requests").select("id",{count:"exact",head:true}).eq("company_id",cid()).eq("status","pending"),
+      sb.from("time_off_requests").select("id",{count:"exact",head:true}).eq("company_id",cid()).eq("status","pending")
+    ]);
+    pendMT=a||0; pendTO=b||0;
+  }
   let secToday=0,secYest=0,secWeek=0,secLastWk=0;
   const puToday={},puWeek={},startToday={};
   (ents||[]).forEach(e=>{const s=e.duration_sec||0,st=e.started_at;
@@ -515,6 +523,11 @@ async function viewOverview(){
      <div class="card stat"><div class="k">Tracking today</div><div class="v tnum">${activeToday}<span style="font-size:15px;color:var(--faint)"> / ${mems?.length||0}</span></div><div class="sub">people active</div></div>
      <div class="card stat"><div class="k">Active projects</div><div class="v tnum">${projs?.length||0}</div><div class="sub">not archived</div></div>
    </div>
+   ${isMgr()&&(pendMT+pendTO)?`<div class="card" style="padding:13px 18px;border-left:3px solid var(--warn)">
+     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b style="font-size:14px">Needs your attention</b>
+       ${pendMT?`<a href="#" onclick="window.loadView('timesheet');return false" class="pill warn" style="text-decoration:none">${pendMT} manual time to approve</a>`:''}
+       ${pendTO?`<a href="#" onclick="window.loadView('timeoff');return false" class="pill warn" style="text-decoration:none">${pendTO} time-off request${pendTO>1?'s':''}</a>`:''}
+     </div></div>`:''}
    <div class="card">
      <div class="sec-head" style="padding:16px 18px 10px"><h3>Today's activity</h3><span class="pill muted">${new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</span></div>
      ${members.length?`<table><thead><tr><th>Member</th><th>Role</th><th>Started</th><th style="text-align:center">Activity</th><th class="tnum" style="text-align:right">Tracked</th></tr></thead><tbody>
