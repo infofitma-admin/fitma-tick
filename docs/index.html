@@ -23,6 +23,11 @@ input{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:
 .btn[disabled]{opacity:.6}
 .err{color:var(--crit);font-size:13px;margin-top:10px}
 .hint{color:var(--faint);font-size:12px;margin-top:14px;text-align:center}
+.pw-wrap{position:relative}
+.pw-wrap input{padding-right:46px}
+.pw-toggle{position:absolute;top:50%;right:6px;transform:translateY(-50%);display:grid;place-items:center;width:34px;height:34px;padding:0;border:0;background:transparent;color:var(--faint);cursor:pointer;border-radius:8px}
+.pw-toggle:hover{color:var(--accent);background:var(--surface-2)}
+.pw-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 </style>
 </head>
 <body>
@@ -33,7 +38,10 @@ input{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:
     <label for="email">Email</label>
     <input id="email" type="email" autocomplete="username" placeholder="you@fitma">
     <label for="pw">Password</label>
-    <input id="pw" type="password" autocomplete="current-password" placeholder="Password">
+    <div class="pw-wrap">
+      <input id="pw" type="password" autocomplete="current-password" placeholder="Password">
+      <button type="button" class="pw-toggle" id="pwToggle" aria-label="Show password" aria-pressed="false" title="Show password"></button>
+    </div>
     <button class="btn" id="go" type="submit">Sign in</button>
   </form>
   <div class="err" id="err" hidden></div>
@@ -45,6 +53,22 @@ const sb=supabase.createClient("https://adyqhpqugdlksqzpscwm.supabase.co","sb_pu
 const ADMIN_EMAIL="info.fitma@gmail.com";
 const err=document.getElementById("err");
 function showErr(m){err.textContent=m;err.hidden=false;}
+// Password show/hide toggle
+(function(){
+  var pw=document.getElementById("pw"), tg=document.getElementById("pwToggle");
+  var EYE='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+  var OFF='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+  tg.innerHTML=EYE;
+  tg.addEventListener("click",function(){
+    var show=pw.type==="password";
+    pw.type=show?"text":"password";
+    tg.innerHTML=show?OFF:EYE;
+    tg.setAttribute("aria-pressed",show?"true":"false");
+    tg.setAttribute("aria-label",show?"Hide password":"Show password");
+    tg.setAttribute("title",show?"Hide password":"Show password");
+    pw.focus();
+  });
+})();
 document.getElementById("f").addEventListener("submit",async(e)=>{
   e.preventDefault();
   err.hidden=true;

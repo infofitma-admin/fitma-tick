@@ -78,7 +78,10 @@ select,input[type=number],input[type=month],textarea{font-family:var(--ff);font-
   <div class="gate card" style="padding:26px">
     <div style="font-family:var(--fh);font-size:20px;font-weight:700">Fitma Team</div>
     <p class="muted" style="font-size:13px;margin:6px 0 0">Enter the admin PIN to view the team dashboard.</p>
-    <input id="pin" type="password" placeholder="Admin PIN" autocomplete="off">
+    <div style="position:relative">
+      <input id="pin" type="password" placeholder="Admin PIN" autocomplete="off" style="padding-right:46px">
+      <button type="button" id="pinToggle" aria-label="Show PIN" title="Show PIN" style="position:absolute;top:50%;right:6px;transform:translateY(-50%);display:grid;place-items:center;width:34px;height:34px;padding:0;border:0;background:transparent;color:#92aabe;cursor:pointer;border-radius:8px"></button>
+    </div>
     <button class="btn" id="go" style="width:100%">View dashboard</button>
     <div class="err" id="gerr" hidden></div>
   </div>
@@ -104,6 +107,7 @@ function gate(){
   const go=()=>{const pin=document.getElementById("pin").value.trim();if(pin){try{localStorage.setItem("fitma_pin",pin)}catch(e){}load(pin);}};
   document.getElementById("go").onclick=go;
   document.getElementById("pin").addEventListener("keydown",e=>{if(e.key==="Enter")go();});
+  (function(){var pw=document.getElementById("pin"),tg=document.getElementById("pinToggle");if(!pw||!tg)return;var E='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',O='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';tg.innerHTML=E;tg.onclick=function(){var s=pw.type==="password";pw.type=s?"text":"password";tg.innerHTML=s?O:E;tg.setAttribute("aria-label",s?"Hide PIN":"Show PIN");tg.setAttribute("title",s?"Hide PIN":"Show PIN");pw.focus();};})();
   let saved=null;try{saved=localStorage.getItem("fitma_pin")}catch(e){}
   if(saved)load(saved);
 }

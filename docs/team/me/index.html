@@ -63,7 +63,10 @@ a{color:var(--accent)}
     <div style="font-family:var(--fh);font-size:20px;font-weight:700">My Fitma Workspace</div>
     <p class="muted" style="font-size:13px;margin:6px 0 2px">Sign in with your Fitma email and password.</p>
     <input id="email" type="email" placeholder="Your email" autocomplete="username">
-    <input id="pw" type="password" placeholder="Password" autocomplete="current-password">
+    <div style="position:relative">
+      <input id="pw" type="password" placeholder="Password" autocomplete="current-password" style="padding-right:46px">
+      <button type="button" id="pwToggle" aria-label="Show password" title="Show password" style="position:absolute;top:50%;right:6px;transform:translateY(-50%);display:grid;place-items:center;width:34px;height:34px;padding:0;border:0;background:transparent;color:#92aabe;cursor:pointer;border-radius:8px"></button>
+    </div>
     <button class="btn" id="go">Sign in</button>
     <div class="err" id="gerr" hidden></div>
   </div>
@@ -80,10 +83,12 @@ function lateMins(startStr,sched){ if(!startStr||!sched)return null; const p=s=>
 function punct(lm){ if(lm==null)return{label:'—',cls:'muted'}; if(lm<=0)return{label:'On time',cls:'good'}; if(lm<=5)return{label:'Needs improvement',cls:'warn'}; return{label:'At risk',cls:'crit'}; }
 const QUOTES=["Small steps every day add up to big results.","Consistency beats intensity.","Do it well, not just fast.","Your effort today builds tomorrow.","Focus on progress, not perfection.","Show up, give your best, keep learning."];
 
+function pwEye(){var pw=document.getElementById("pw"),tg=document.getElementById("pwToggle");if(!pw||!tg)return;var E='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',O='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';tg.innerHTML=E;tg.onclick=function(){var s=pw.type==="password";pw.type=s?"text":"password";tg.innerHTML=s?O:E;tg.setAttribute("aria-label",s?"Hide password":"Show password");tg.setAttribute("title",s?"Hide password":"Show password");pw.focus();};}
 function gate(){
   const go=()=>{const email=document.getElementById("email").value.trim();const pw=document.getElementById("pw").value;if(email&&pw){try{localStorage.setItem("fitma_me",JSON.stringify({email,pw}))}catch(e){}load(email,pw);}};
   document.getElementById("go").onclick=go;
   document.getElementById("pw").addEventListener("keydown",e=>{if(e.key==="Enter")go();});
+  pwEye();
   let s=null;try{s=JSON.parse(localStorage.getItem("fitma_me")||"null")}catch(e){}
   if(s&&s.email)load(s.email,s.pw);
 }
@@ -94,7 +99,7 @@ async function load(email,pw){
     try{localStorage.removeItem("fitma_me")}catch(e){}
     app.innerHTML=`<div class="gate card" style="padding:26px"><div style="font-family:var(--fh);font-size:20px;font-weight:700">My Fitma Workspace</div>
       <p class="err" style="margin:8px 0">${data&&data.error==='not_found'?'We could not find that email.':data&&data.error?'Wrong email or password.':'Could not load. '+esc(error?error.message:'')}</p>
-      <input id="email" type="email" placeholder="Your email"><input id="pw" type="password" placeholder="Password"><button class="btn" id="go">Sign in</button>
+      <input id="email" type="email" placeholder="Your email"><div style="position:relative"><input id="pw" type="password" placeholder="Password" style="padding-right:46px"><button type="button" id="pwToggle" aria-label="Show password" title="Show password" style="position:absolute;top:50%;right:6px;transform:translateY(-50%);display:grid;place-items:center;width:34px;height:34px;padding:0;border:0;background:transparent;color:#92aabe;cursor:pointer;border-radius:8px"></button></div><button class="btn" id="go">Sign in</button>
       <p class="muted" style="font-size:12px;margin-top:10px">Forgot your password? Ask the admin.</p></div>`;
     gate();return;
   }
