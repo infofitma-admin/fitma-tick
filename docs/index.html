@@ -4,91 +4,26 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#273545">
-<title>Fitma Workspace</title>
+<title>Fitma Tick</title>
 <link rel="icon" type="image/png" href="/logo-white.png">
-<link rel="apple-touch-icon" href="/logo-white.png">
+<link rel="canonical" href="/tick/app/">
+<meta http-equiv="refresh" content="0; url=/tick/app/">
+<script>location.replace('/tick/app/');</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Corben:wght@400;700&family=Montserrat:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Corben:wght@700&family=Montserrat:wght@400;600&display=swap">
 <style>
-:root{--bg:#eef0f2;--surface:#ffffff;--surface-2:#f5f6f7;--border:#d8dddf;--fg:#273545;--muted:#5d7488;--faint:#92aabe;--primary:#273545;--accent:#3d5c71;--accent-soft:#e2e8ee;--crit:#c0453f;--radius:14px;--shadow:0 1px 2px rgba(39,53,69,.06),0 8px 24px rgba(39,53,69,.07);--ff:"Montserrat",-apple-system,system-ui,sans-serif;--fh:"Corben","Montserrat",Georgia,serif;}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--ff);font-size:14px;line-height:1.5;min-height:100vh;display:grid;place-items:center;padding:16px}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:30px;width:100%;max-width:380px}
-.brand{font-family:var(--fh);font-size:24px;font-weight:700;color:var(--primary)}
-.sub{color:var(--muted);font-size:13px;margin:6px 0 18px}
-label{display:block;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin:12px 0 4px}
-input{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:10px;font-size:15px;font-family:var(--ff)}
-.btn{background:var(--primary);color:#fff;border:0;border-radius:10px;padding:12px 16px;font-weight:600;cursor:pointer;font-family:var(--ff);font-size:15px;width:100%;margin-top:18px}
-.btn[disabled]{opacity:.6}
-.err{color:var(--crit);font-size:13px;margin-top:10px}
-.hint{color:var(--faint);font-size:12px;margin-top:14px;text-align:center}
-.pw-wrap{position:relative}
-.pw-wrap input{padding-right:46px}
-.pw-toggle{position:absolute;top:50%;right:6px;transform:translateY(-50%);display:grid;place-items:center;width:34px;height:34px;padding:0;border:0;background:transparent;color:var(--faint);cursor:pointer;border-radius:8px}
-.pw-toggle:hover{color:var(--accent);background:var(--surface-2)}
-.pw-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+html,body{height:100%;margin:0;background:#f1f1f1;color:#273545;font-family:"Montserrat",-apple-system,system-ui,sans-serif;display:grid;place-items:center;padding:16px}
+.box{text-align:center}
+.brand{font-family:"Corben","Montserrat",Georgia,serif;font-size:22px;font-weight:700;color:#273545;margin-bottom:6px}
+.sub{color:#5d7488;font-size:14px}
+a{color:#3d5c71;font-weight:600}
 </style>
 </head>
 <body>
-<div class="card">
-  <div class="brand">Fitma Workspace</div>
-  <p class="sub">Sign in with your Fitma email and password.</p>
-  <form id="f">
-    <label for="email">Email</label>
-    <input id="email" type="email" autocomplete="username" placeholder="you@fitma">
-    <label for="pw">Password</label>
-    <div class="pw-wrap">
-      <input id="pw" type="password" autocomplete="current-password" placeholder="Password">
-      <button type="button" class="pw-toggle" id="pwToggle" aria-label="Show password" aria-pressed="false" title="Show password"></button>
-    </div>
-    <button class="btn" id="go" type="submit">Sign in</button>
-  </form>
-  <div class="err" id="err" hidden></div>
-  <p class="hint">Forgot your password? Ask the admin.</p>
+<div class="box">
+  <div class="brand">Fitma&nbsp;Tick</div>
+  <p class="sub">Opening your dashboard… <a href="/tick/app/">Continue</a></p>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
-<script>
-const sb=supabase.createClient("https://adyqhpqugdlksqzpscwm.supabase.co","sb_publishable_l3HBtg1KUO6nBZkwxXqQvw_9uPyXSRz");
-const ADMIN_EMAIL="info.fitma@gmail.com";
-const err=document.getElementById("err");
-function showErr(m){err.textContent=m;err.hidden=false;}
-// Password show/hide toggle
-(function(){
-  var pw=document.getElementById("pw"), tg=document.getElementById("pwToggle");
-  var EYE='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
-  var OFF='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
-  tg.innerHTML=EYE;
-  tg.addEventListener("click",function(){
-    var show=pw.type==="password";
-    pw.type=show?"text":"password";
-    tg.innerHTML=show?OFF:EYE;
-    tg.setAttribute("aria-pressed",show?"true":"false");
-    tg.setAttribute("aria-label",show?"Hide password":"Show password");
-    tg.setAttribute("title",show?"Hide password":"Show password");
-    pw.focus();
-  });
-})();
-document.getElementById("f").addEventListener("submit",async(e)=>{
-  e.preventDefault();
-  err.hidden=true;
-  const email=document.getElementById("email").value.trim();
-  const pw=document.getElementById("pw").value;
-  const btn=document.getElementById("go");
-  if(!email||!pw){showErr("Enter your email and password.");return;}
-  btn.disabled=true;btn.textContent="Signing in…";
-  try{
-    if(email.toLowerCase()===ADMIN_EMAIL){
-      const {data,error}=await sb.rpc("fitma_team_report",{p_pin:pw});
-      if(!error&&data&&!data.error){ try{localStorage.setItem("fitma_pin",pw)}catch(x){} location.href="team/"; return; }
-    }
-    const {data,error}=await sb.rpc("fitma_my_report",{p_email:email,p_pin:pw});
-    if(!error&&data&&!data.error){ try{localStorage.setItem("fitma_me",JSON.stringify({email,pw}))}catch(x){} location.href="team/me/"; return; }
-    if(data&&data.error==="not_found") showErr("We couldn't find that email.");
-    else showErr("Wrong email or password.");
-  }catch(x){ showErr("Could not sign in. "+(x&&x.message||"")); }
-  btn.disabled=false;btn.textContent="Sign in";
-});
-</script>
 </body>
 </html>
