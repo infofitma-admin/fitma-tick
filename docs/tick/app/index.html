@@ -650,7 +650,7 @@ function startClock(){clearInterval(timer.tick);timer.tick=setInterval(()=>{cons
 async function startTimer(){
   const sel=content().querySelector("#tproj");timer.projectId=sel.value||null;
   timer.startedAt=Date.now();timer.running=true;
-  const {data,error}=await sb.from("time_entries").insert({company_id:cid(),user_id:state.user.id,project_id:timer.projectId,started_at:new Date(timer.startedAt).toISOString(),source:"desktop"}).select().single();
+  const {data,error}=await sb.from("time_entries").insert({company_id:cid(),user_id:state.user.id,project_id:timer.projectId,started_at:new Date(timer.startedAt).toISOString(),source:"web"}).select().single();
   if(error){alert2(error.message);timer.running=false;return;}
   timer.entryId=data.id;sel.disabled=true;
   content().querySelector("#tdot").classList.add("live");
@@ -818,7 +818,7 @@ async function viewProjects(){
   if(!projs||!projs.length){c.innerHTML=`<div class="card"><div class="empty">${ICON.projects}<div>No projects yet.${isMgr()?' Create your first one.':''}</div></div></div>`;return;}
   c.innerHTML=projs.map(p=>{const ts=tByP[p.id]||[];const done=ts.filter(t=>t.status==='done').length;const asg=assignBy[p.id]||[];
     const trkH=(trackedBy[p.id]||0)/3600; const budget=p.budget_hours?Number(p.budget_hours):0;
-    const bpct=budget?Math.min(100,Math.round(trkH/budget*100)):0; const over=budget&&trkH>budget;
+    const over=budget&&trkH>budget;
     const budgetBar=budget?`<div style="margin-top:10px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span class="muted">Budget</span><span class="tnum" style="font-weight:600${over?';color:var(--heart)':''}">${trkH.toFixed(1)} / ${budget} h${over?' · over':''}</span></div><div class="bar ${over?'unproductive':'productive'}"><i style="width:${budget?Math.min(100,Math.round(trkH/budget*100)):0}%"></i></div></div>`:'';
     const stack=asg.length?`<div style="display:flex;align-items:center" title="${esc(asg.map(pNameOf).join(', '))}">${asg.slice(0,4).map((u,i)=>`<div class="avatar" style="width:24px;height:24px;font-size:10px;border:2px solid var(--surface);${i?'margin-left:-8px':''}">${esc(initials(pNameOf(u)))}</div>`).join("")}${asg.length>4?`<span class="pill muted" style="margin-left:4px">+${asg.length-4}</span>`:''}</div>`:'<span class="faint" style="font-size:12.5px">No one assigned</span>';
     return `<div class="card" style="padding:16px 18px${p.archived?';opacity:.62':''}">
