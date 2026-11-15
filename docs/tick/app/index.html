@@ -283,7 +283,7 @@ function renderAuth(mode){
       ${mode==='login'?`<div style="text-align:right;margin:-6px 0 6px"><a href="#" id="f_forgot" style="color:var(--accent);font-size:12.5px">Forgot password?</a></div>`:""}
       <button class="btn pri" style="width:100%;margin-top:4px" id="authbtn">${mode==='signup'?'Create account':'Log in'}</button>
     </form>
-    <p class="hint" style="text-align:center;margin-top:16px">${mode==='signup'?'Free 14-day trial. Fitma employees are always free.':'Welcome back.'}</p>
+    <p class="hint" style="text-align:center;margin-top:16px">${mode==='signup'?'Free 14-day trial.':'Welcome back.'}</p>
   </div></div>`;
   app.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>renderAuth(b.dataset.m));
   wireEye("f_pass","f_eye");
