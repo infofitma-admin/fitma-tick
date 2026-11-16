@@ -489,12 +489,13 @@ async function viewOverview(){
   const todayISO=startOfToday(), wkISO=startOfWeek();
   const lastWkISO=new Date(new Date(wkISO).getTime()-7*864e5).toISOString();
   const yISO=new Date(new Date(todayISO).getTime()-864e5).toISOString();
+  const l7ISO=new Date(new Date(todayISO).getTime()-6*864e5).toISOString();
   const since18h=new Date(Date.now()-18*3600e3).toISOString();
   const [{data:mems},{data:ents},{data:projs},{data:shots},{data:openEnts}]=await Promise.all([
     sb.from("memberships").select("user_id,role").eq("company_id",cid()).eq("status","active"),
     sb.from("time_entries").select("user_id,duration_sec,started_at").eq("company_id",cid()).gte("started_at",lastWkISO),
     sb.from("projects").select("id,name").eq("company_id",cid()).eq("archived",false),
-    sb.from("screenshots").select("user_id,activity_pct,captured_at").eq("company_id",cid()).gte("captured_at",todayISO),
+    sb.from("screenshots").select("user_id,activity_pct,captured_at").eq("company_id",cid()).gte("captured_at",l7ISO),
     sb.from("time_entries").select("user_id,started_at,project_id").eq("company_id",cid()).is("ended_at",null).gte("started_at",since18h)
   ]);
   const pm=await profilesMap((mems||[]).map(m=>m.user_id));
@@ -511,12 +512,13 @@ async function viewOverview(){
     ]);
     pendMT=a||0; pendTO=b||0;
   }
-  let secToday=0,secYest=0,secWeek=0,secLastWk=0;
-  const puToday={},puWeek={},startToday={};
+  let secToday=0,secYest=0,secWeek=0,secLastWk=0,secL7=0;
+  const puToday={},puWeek={},startToday={},puL7={},startRecent={};
   (ents||[]).forEach(e=>{const s=e.duration_sec||0,st=e.started_at;
     if(st>=todayISO){secToday+=s;puToday[e.user_id]=(puToday[e.user_id]||0)+s;if(!startToday[e.user_id]||st<startToday[e.user_id])startToday[e.user_id]=st;}
     else if(st>=yISO){secYest+=s;}
     if(st>=wkISO){secWeek+=s;puWeek[e.user_id]=(puWeek[e.user_id]||0)+s;} else {secLastWk+=s;}
+    if(st>=l7ISO){secL7+=s;puL7[e.user_id]=(puL7[e.user_id]||0)+s;if(!startRecent[e.user_id]||st>startRecent[e.user_id])startRecent[e.user_id]=st;}
   });
   const act={}; (shots||[]).forEach(sh=>{if(sh.activity_pct!=null){(act[sh.user_id]=act[sh.user_id]||{s:0,n:0});act[sh.user_id].s+=sh.activity_pct;act[sh.user_id].n++;}});
   const actOf=u=>act[u]?Math.round(act[u].s/act[u].n):null;
@@ -524,10 +526,11 @@ async function viewOverview(){
   const delta=(a,b)=>{if(!b)return "";const p=Math.round((a-b)/b*100);return (p>=0?"↑":"↓")+Math.abs(p)+"% vs ";};
   const members=(mems||[]).slice().sort((a,b)=>(puToday[b.user_id]||0)-(puToday[a.user_id]||0));
   const maxWk=Math.max(1,...Object.values(puWeek),1);
+  const maxL7=Math.max(1,...Object.values(puL7),1);
   const c=content();
   c.innerHTML=`
    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
-     <div class="card stat"><div class="k">Tracked today</div><div class="v tnum">${fmtDur(secToday)}</div><div class="sub">${delta(secToday,secYest)}${fmtDur(secYest)} yesterday</div></div>
+     <div class="card stat"><div class="k">Tracked · last 7 days</div><div class="v tnum">${fmtDur(secL7)}</div><div class="sub">${fmtDur(secToday)} today</div></div>
      <div class="card stat"><div class="k">This week</div><div class="v tnum">${fmtDur(secWeek)}</div><div class="sub">${delta(secWeek,secLastWk)}${fmtDur(secLastWk)} last week</div></div>
      <div class="card stat"><div class="k">Tracking today</div><div class="v tnum">${activeToday}<span style="font-size:15px;color:var(--faint)"> / ${mems?.length||0}</span></div><div class="sub">people active</div></div>
      <div class="card stat"><div class="k">Active projects</div><div class="v tnum">${projs?.length||0}</div><div class="sub">not archived</div></div>
@@ -546,9 +549,9 @@ async function viewOverview(){
        <div class="tnum" style="font-weight:700;font-family:var(--fh)" data-elapsed="${e.started_at}">0m</div></div>`;}).join("")}
      </div></div>`:''}
    <div class="card">
-     <div class="sec-head" style="padding:16px 18px 10px"><h3>Today's activity</h3><span class="pill muted">${new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</span></div>
-     ${members.length?`<table><thead><tr><th>Member</th><th>Role</th><th>Started</th><th style="text-align:center">Activity</th><th class="tnum" style="text-align:right">Tracked</th></tr></thead><tbody>
-       ${members.map(m=>{const u=m.user_id;const nm=nameOf(u);const st=startToday[u];const tracked=puToday[u]||0;
+     <div class="sec-head" style="padding:16px 18px 10px"><h3>Recent activity</h3><span class="pill muted">Last 7 days</span></div>
+     ${members.length?`<table><thead><tr><th>Member</th><th>Role</th><th>Last start</th><th style="text-align:center">Activity</th><th class="tnum" style="text-align:right">Tracked</th></tr></thead><tbody>
+       ${members.slice().sort((a,b)=>(puL7[b.user_id]||0)-(puL7[a.user_id]||0)).map(m=>{const u=m.user_id;const nm=nameOf(u);const st=startRecent[u];const tracked=puL7[u]||0;
          return `<tr><td><div style="display:flex;align-items:center;gap:9px"><div class="avatar" style="width:28px;height:28px;font-size:11px">${esc(initials(nm))}</div>${esc(nm)}</div></td>
            <td><span class="pill ${["owner","admin"].includes(m.role)?'accent':'muted'}">${esc(m.role)}</span></td>
            <td class="tnum">${st?new Date(st).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'<span class="muted">—</span>'}</td>
@@ -557,11 +560,11 @@ async function viewOverview(){
      </tbody></table>`:`<div class="empty">No members yet.</div>`}
    </div>
    <div class="card">
-     <div class="sec-head" style="padding:16px 18px 10px"><h3>This week by member</h3><span class="pill muted">Mon–today</span></div>
+     <div class="sec-head" style="padding:16px 18px 10px"><h3>Last 7 days by member</h3><span class="pill muted">Last 7 days</span></div>
      ${members.length?`<table><thead><tr><th>Member</th><th style="width:45%">Tracked</th><th class="tnum" style="text-align:right">Hours</th></tr></thead><tbody>
-       ${members.slice().sort((a,b)=>(puWeek[b.user_id]||0)-(puWeek[a.user_id]||0)).map(m=>{const s=puWeek[m.user_id]||0;const nm=nameOf(m.user_id);
+       ${members.slice().sort((a,b)=>(puL7[b.user_id]||0)-(puL7[a.user_id]||0)).map(m=>{const s=puL7[m.user_id]||0;const nm=nameOf(m.user_id);
          return `<tr><td><div style="display:flex;align-items:center;gap:9px"><div class="avatar" style="width:26px;height:26px;font-size:11px">${esc(initials(nm))}</div>${esc(nm)}</div></td>
-           <td><div class="bar"><i style="width:${Math.round(s/maxWk*100)}%"></i></div></td>
+           <td><div class="bar"><i style="width:${Math.round(s/maxL7*100)}%"></i></div></td>
            <td class="tnum" style="text-align:right;font-weight:600">${fmtDur(s)}</td></tr>`;}).join("")}
      </tbody></table>`:""}
    </div>`;
@@ -1162,7 +1165,7 @@ let _reportExport=null;
 async function viewReports(){
   const c=content();
   const pro=planAtLeast("pro"); const proOnly={attendance:1,apps:1};
-  const tabs=[["hours","Tracked hours"],["timesheet","Timesheet"],["attendance","Attendance"],["apps","Apps & websites"]];
+  const tabs=[["hours","Tracked hours"],["performance","Performance"],["timesheet","Timesheet"],["attendance","Attendance"],["apps","Apps & websites"]];
   const mgr=isMgr();
   // member + project lists (and assignments) up front so the filters can be populated
   const [{data:mems},{data:projs},{data:asgRows}]=await Promise.all([
@@ -1183,7 +1186,7 @@ async function viewReports(){
   const projOptions=memberHasAssignments?(projs||[]).filter(p=>projsByUser[reportsState.member].has(p.id)):(projs||[]);
   // if the chosen project is no longer selectable under the current member, fall back to All
   if(reportsState.project!=="all"&&reportsState.project!=="__none"&&memberHasAssignments&&!projsByUser[reportsState.member].has(reportsState.project)) reportsState.project="all";
-  const showProj=reportsState.tab!=="apps";
+  const showProj=reportsState.tab!=="apps"&&reportsState.tab!=="performance";
   const showGroup=reportsState.tab==="hours";
   const custom=reportsState.range==="custom";
   const today=dkey(new Date());
@@ -1278,6 +1281,40 @@ async function viewReports(){
   const E=ents||[];
   // which members to show as rows — narrowed when a single member is selected
   const members=(reportsState.member!=="all"?[reportsState.member]:(mems||[]).map(m=>m.user_id));
+
+  if(reportsState.tab==="performance"){
+    let actq=sb.from("activity_samples").select("user_id,activity_pct").eq("company_id",cid()).gte("sampled_at",fromISO).lte("sampled_at",toISO);
+    if(reportsState.member!=="all") actq=actq.eq("user_id",reportsState.member);
+    const [{data:acts},{data:tsk}]=await Promise.all([actq, sb.from("tasks").select("assigned_to,status,due_date").eq("company_id",cid())]);
+    const secBy={}; E.forEach(e=>{secBy[e.user_id]=(secBy[e.user_id]||0)+(e.duration_sec||0);});
+    const actBy={}; (acts||[]).forEach(a=>{ if(a.activity_pct!=null){(actBy[a.user_id]=actBy[a.user_id]||{s:0,n:0});actBy[a.user_id].s+=a.activity_pct;actBy[a.user_id].n++;} });
+    const avgAct=u=>actBy[u]&&actBy[u].n?Math.round(actBy[u].s/actBy[u].n):null;
+    const fromDay=dkey(from),toDay=dkey(to); const tDue={},tOn={};
+    (tsk||[]).forEach(t=>{ if(!t.assigned_to||!t.due_date||t.due_date<fromDay||t.due_date>toDay) return; tDue[t.assigned_to]=(tDue[t.assigned_to]||0)+1; if(t.status==="done") tOn[t.assigned_to]=(tOn[t.assigned_to]||0)+1; });
+    const prows=members.map(u=>{ const sec=secBy[u]||0,a=avgAct(u),due=tDue[u]||0,on=tOn[u]||0,delivery=due?Math.round(on/due*100):null;
+      let score=(a!=null&&delivery!=null)?Math.round(a*0.5+delivery*0.5):(a!=null?a:(delivery!=null?delivery:null));
+      return {u,name:nameOf(u),sec,a,due,on,delivery,score}; }).sort((x,y)=>(y.score==null?-1:y.score)-(x.score==null?-1:x.score));
+    const scoreCls=s=>s==null?'muted':s>=75?'good':s>=50?'warn':'crit';
+    const noteFor=r=>{const bits=[]; if(r.sec>0)bits.push(fmtDur(r.sec)+' tracked'); if(r.a!=null)bits.push(r.a+'% activity'); if(r.due)bits.push(r.on+'/'+r.due+' tasks on time'); return bits.join(' · ')||'No tracked activity in this range';};
+    const scored=prows.map(r=>r.score).filter(x=>x!=null); const teamScore=scored.length?Math.round(scored.reduce((a,b)=>a+b,0)/scored.length):null;
+    _reportExport={name:`performance-${dkey(from)}.csv`,title:`Performance — ${rangeLabel}`,sub:teamScore!=null?`Team score ${teamScore}`:'',rows:[["Member","Hours","Avg activity %","Tasks on time","Tasks due","Score"]].concat(prows.map(r=>[r.name,hrs(r.sec).toFixed(2),r.a==null?'':r.a,r.on,r.due,r.score==null?'':r.score]))};
+    body.innerHTML=`
+     <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+       <div class="card stat"><div class="k">Team score</div><div class="v tnum">${teamScore!=null?teamScore:'—'}</div><div class="sub">${rangeLabel}</div></div>
+       <div class="card stat"><div class="k">People tracked</div><div class="v tnum">${prows.filter(r=>r.sec>0).length}</div><div class="sub">of ${members.length}</div></div>
+       <div class="card stat"><div class="k">Tasks on time</div><div class="v tnum">${prows.reduce((s,r)=>s+r.on,0)}<span style="font-size:15px;color:var(--faint)"> / ${prows.reduce((s,r)=>s+r.due,0)}</span></div><div class="sub">across the team</div></div>
+     </div>
+     <div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Performance by member</h3><span class="muted" style="font-size:13px">${rangeLabel}</span></div>
+      ${prows.length?`<div style="overflow-x:auto"><table><thead><tr><th>Member</th><th class="tnum" style="text-align:right">Hours</th><th style="text-align:center">Activity</th><th style="text-align:center">Tasks on time</th><th style="text-align:center">Score</th></tr></thead><tbody>
+       ${prows.map(r=>`<tr><td><div style="display:flex;align-items:center;gap:9px"><div class="avatar" style="width:28px;height:28px;font-size:11px">${esc(initials(r.name))}</div><div><div style="font-weight:600">${esc(r.name)}</div><div class="muted" style="font-size:11px">${esc(noteFor(r))}</div></div></div></td>
+         <td class="tnum" style="text-align:right;font-weight:600">${r.sec?fmtDur(r.sec):'<span class="muted">—</span>'}</td>
+         <td style="text-align:center">${r.a!=null?activityRing(r.a):'<span class="muted">—</span>'}</td>
+         <td style="text-align:center">${r.due?r.on+'/'+r.due:'<span class="muted">—</span>'}</td>
+         <td style="text-align:center"><span class="pill ${scoreCls(r.score)}">${r.score!=null?r.score:'—'}</span></td></tr>`).join("")}
+      </tbody></table></div>`:`<div class="empty">No members to score in this range.</div>`}
+      <p class="hint" style="padding:10px 18px">Score blends activity level and on-time task delivery. It sharpens as the team tracks with the desktop app and projects get tasks with due dates.</p></div>`;
+    return;
+  }
 
   if(reportsState.tab==="hours"){
     const byUser={}, byProj={}, byDay={}; let total=0;
