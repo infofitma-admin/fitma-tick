@@ -1289,6 +1289,7 @@ function reportRange(key){const now=new Date();let from,to=new Date(now);to.setH
   if(key==="today"){from=new Date(now);from.setHours(0,0,0,0);}
   else if(key==="week"){from=new Date(now);const d=(from.getDay()+6)%7;from.setDate(from.getDate()-d);from.setHours(0,0,0,0);}
   else if(key==="month"){from=new Date(now.getFullYear(),now.getMonth(),1);}
+  else if(key==="lastmonth"){from=new Date(now.getFullYear(),now.getMonth()-1,1);to=new Date(now.getFullYear(),now.getMonth(),0);to.setHours(23,59,59,999);}
   else if(key==="last7"){from=new Date(now);from.setDate(from.getDate()-6);from.setHours(0,0,0,0);}
   else {from=new Date(now);from.setDate(from.getDate()-29);from.setHours(0,0,0,0);}
   return {from,to};}
@@ -1412,7 +1413,7 @@ async function viewReports(){
          ${showProj?`<select id="rproject" class="filt" title="${memberHasAssignments?nameOf(reportsState.member)+"’s projects":"Project"}"><option value="all">${memberHasAssignments?"Their projects":"All projects"}</option><option value="__none" ${reportsState.project==="__none"?'selected':''}>No project</option>${projOptions.map(p=>`<option value="${p.id}" ${reportsState.project===p.id?'selected':''}>${esc(p.name)}</option>`).join("")}</select>`:''}
          ${showGroup?`<select id="rgroup" class="filt" title="Group by"><option value="member" ${reportsState.group==="member"?'selected':''}>Group: Member</option><option value="project" ${reportsState.group==="project"?'selected':''}>Group: Project</option><option value="date" ${reportsState.group==="date"?'selected':''}>Group: Day</option></select>`:''}
          <select id="rrange" class="filt" title="Date range">
-           <option value="today">Today</option><option value="week">This week</option><option value="month">This month</option><option value="last7">Last 7 days</option><option value="last30">Last 30 days</option><option value="custom">Custom…</option></select>
+           <option value="today">Today</option><option value="week">This week</option><option value="month">This month</option><option value="lastmonth">Last month</option><option value="last7">Last 7 days</option><option value="last30">Last 30 days</option><option value="custom">Custom…</option></select>
          ${custom?`<input type="date" id="rfrom" class="filt" value="${reportsState.cfrom||today}" max="${today}"><span class="muted" style="font-size:12px">to</span><input type="date" id="rto" class="filt" value="${reportsState.cto||today}" max="${today}">`:''}
          <button class="btn sm" id="rexport" ${pro?'':'disabled title="Exports are included from Pro"'}>Export ▾</button>
        </div>
@@ -1528,23 +1529,40 @@ async function viewReports(){
     const teamScores=prows.filter(r=>!r.founder&&!r.a.untracked&&r.overall!=null).map(r=>r.overall); const teamScore=teamScores.length?Math.round(teamScores.reduce((a,b)=>a+b,0)/teamScores.length):null;
     const totLate=prows.reduce((s,r)=>s+((r.founder||r.a.untracked)?0:r.a.lateCount),0), totStarts=prows.reduce((s,r)=>s+((r.founder||r.a.untracked)?0:r.a.attendedDays),0);
     _reportExport={name:`performance-${dkey(from)}.csv`,title:`Performance — ${rangeLabel}`,sub:teamScore!=null?`Team score ${teamScore}`:'',rows:[["Member","Schedule","Working days","Present","Absent","Late starts","On-time %","Hours tracked","Required hrs","Tasks on time","Tasks due","Score","Grade"]].concat(prows.map(r=>{const a=r.a;return [r.name,SCHED_LBL(a.sc),a.founder?'':a.working,a.founder?a.flexPresent:a.present,a.founder?'':a.absent,a.founder?'':a.lateCount,a.founder?'':(a.onTimePct==null?'':a.onTimePct),hrs(a.trackedMin*60).toFixed(2),a.founder?'':hrs(a.requiredMin*60).toFixed(2),r.on,r.due,r.overall,r.grade.g];}))};
+    const barColor=v=>v>=80?'#16a34a':v>=60?'#d97706':'#dc2626';
+    const factor=(label,score)=>{const v=score==null?0:Math.round(score);return `<div style="display:flex;align-items:center;gap:8px;margin:5px 0"><span style="width:120px;font-size:12px;color:var(--muted)">${label}</span><div style="flex:1;height:8px;background:var(--surface-2,#edf0f4);border-radius:5px;overflow:hidden"><i style="display:block;height:100%;width:${Math.min(100,Math.max(0,v))}%;background:${barColor(v)}"></i></div><span class="tnum" style="width:30px;text-align:right;font-weight:600;font-size:12px">${score==null?'—':v}</span></div>`;};
+    const factorsFor=r=>{const a=r.a,s=a.scores; if(a.founder) return [['On-time delivery',r.delivery],['Hours',Math.round(s.hours)]]; return [['Punctuality',Math.round(s.punctuality)],['Finishing shifts',Math.round(s.completion)],['Attendance',Math.round(s.attendance)],['Hours tracked',Math.round(s.hours)],['On-time delivery',r.delivery]];};
+    const feedbackFor=r=>{const a=r.a,s=a.scores,good=[],imp=[]; if(a.untracked) return {good:[],imp:['Not using the tracker yet — ask them to install Fitma Tick and press start.']};
+      if(a.founder){ good.push(`Logged ${fmtDur(a.trackedMin*60)} on a flexible schedule.`); if(r.due){ if(r.delivery>=85) good.push(`Delivered ${r.on} of ${r.due} tasks on time.`); else imp.push(`${r.due-r.on} of ${r.due} tasks missed the deadline.`);} else imp.push('Add due dates to tasks so delivery can be scored.'); return {good,imp}; }
+      if(a.lateCount===0) good.push(`On time for all ${a.attendedDays} morning${a.attendedDays!==1?'s':''}.`); else if(a.lateCount<=2) good.push(`On time for ${a.attendedDays-a.lateCount} of ${a.attendedDays} mornings.`); else imp.push(`Late ${a.lateCount} of ${a.attendedDays} mornings (${a.lateMin} min in total).`);
+      if(a.earlyCount===0) good.push('Finished every shift to the end.'); else if(a.earlyCount>=2) imp.push(`Ended ${a.earlyCount} shift(s) early or missed a shift.`);
+      if(a.absent===0) good.push('Full attendance, no absences.'); else imp.push(`${a.absent} working day(s) absent.`);
+      if(a.offDays) imp.push(`${a.offDays} day(s) worked outside the scheduled 9:00 AM hours.`);
+      if(Math.round(s.hours)>=95) good.push('Met the required hours.'); else imp.push(`Tracked ${fmtDur(a.trackedMin*60)} of ${fmtDur(a.requiredMin*60)} required.`);
+      if(r.due){ if(r.delivery>=90) good.push(`Delivered ${r.on} of ${r.due} tasks on time.`); else if(r.delivery<80) imp.push(`Only ${r.on} of ${r.due} tasks were on time.`); }
+      return {good,imp};};
     body.innerHTML=`
      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
        <div class="card stat"><div class="k">Team score</div><div class="v tnum">${teamScore!=null?teamScore:'—'}</div><div class="sub">${rangeLabel}</div></div>
        <div class="card stat"><div class="k">On-time starts</div><div class="v tnum">${totStarts?Math.round((totStarts-totLate)/totStarts*100):'—'}${totStarts?'%':''}</div><div class="sub">${totStarts-totLate} of ${totStarts} working days</div></div>
        <div class="card stat"><div class="k">Tasks on time</div><div class="v tnum">${prows.reduce((s,r)=>s+r.on,0)}<span style="font-size:15px;color:var(--faint)"> / ${prows.reduce((s,r)=>s+r.due,0)}</span></div><div class="sub">across the team</div></div>
      </div>
-     <div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Performance by member</h3><span class="muted" style="font-size:13px">${rangeLabel}</span></div>
-      ${prows.length?`<div style="overflow-x:auto"><table><thead><tr><th>Member</th><th style="text-align:center">Present</th><th style="text-align:center">On-time</th><th class="tnum" style="text-align:right">Hours</th><th style="text-align:center">Tasks</th><th style="text-align:center">Score</th><th>Grade</th></tr></thead><tbody>
-       ${prows.map(r=>{const a=r.a;return `<tr><td><div style="display:flex;align-items:center;gap:9px"><div class="avatar" style="width:28px;height:28px;font-size:11px">${esc(initials(r.name))}</div><div><div style="font-weight:600">${esc(r.name)}</div><div class="muted" style="font-size:11px">${esc(summaryFor(r))}</div></div></div></td>
-         <td style="text-align:center">${a.untracked?'<span class="muted">—</span>':a.founder?'<span class="muted">Flexible</span>':(a.present+'/'+a.working)}</td>
-         <td style="text-align:center">${a.founder?'<span class="muted">—</span>':(a.onTimePct==null?'<span class="muted">—</span>':a.onTimePct+'%')}</td>
-         <td class="tnum" style="text-align:right;font-weight:600">${a.trackedMin?fmtDur(a.trackedMin*60):'<span class="muted">—</span>'}</td>
-         <td style="text-align:center">${r.due?r.on+'/'+r.due:'<span class="muted">—</span>'}</td>
-         <td style="text-align:center"><span class="pill ${r.grade.cls}">${r.overall!=null?r.overall:'—'}</span></td>
-         <td><span class="pill ${r.grade.cls}">${r.grade.g}</span></td></tr>`;}).join("")}
-      </tbody></table></div>`:`<div class="empty">No members to score in this range.</div>`}
-      <p class="hint" style="padding:10px 18px">Score blends punctuality (25%), finishing shifts (15%), attendance (20%), hours tracked (15%) and on-time task delivery (25%) — the same method as your performance sheet. Founders are on a flexible schedule, scored on delivery and hours.</p></div>`;
+     ${prows.length?`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(330px,1fr))">
+      ${prows.map(r=>{const a=r.a,fb=feedbackFor(r);return `<div class="card" style="padding:16px 18px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <div class="avatar" style="width:36px;height:36px">${esc(initials(r.name))}</div>
+          <div style="flex:1;min-width:0"><div style="font-weight:700;font-family:var(--fh)">${esc(r.name)}</div><div class="muted" style="font-size:12px">${SCHED_LBL(a.sc)}${a.founder||a.untracked?'':' · '+a.present+'/'+a.working+' days'}</div></div>
+          <div style="text-align:right"><div style="font-family:var(--fh);font-size:24px;font-weight:700;line-height:1">${r.overall!=null?r.overall:'—'}</div><span class="pill ${r.grade.cls}" style="font-size:11px">${r.grade.g}</span></div>
+        </div>
+        ${a.untracked?'':`<div style="margin:12px 0">${factorsFor(r).map(f=>factor(f[0],f[1])).join("")}</div>`}
+        <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;border-top:1px solid var(--border);padding-top:10px">
+          ${fb.good.length?`<div style="flex:1;min-width:130px"><div style="font-weight:600;color:#16a34a;margin-bottom:3px">Strengths</div><ul style="margin:0;padding-left:16px;line-height:1.6;color:var(--muted)">${fb.good.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`:''}
+          ${fb.imp.length?`<div style="flex:1;min-width:130px"><div style="font-weight:600;color:#d97706;margin-bottom:3px">To improve</div><ul style="margin:0;padding-left:16px;line-height:1.6;color:var(--muted)">${fb.imp.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`:''}
+          ${!fb.good.length&&!fb.imp.length?'<div class="muted">No notes for this period.</div>':''}
+        </div>
+      </div>`;}).join("")}
+     </div>`:`<div class="card"><div class="empty">No members to score in this range.</div></div>`}
+     <p class="hint" style="padding:4px 2px">Each score blends punctuality (25%), finishing shifts (15%), attendance (20%), hours tracked (15%) and on-time task delivery (25%) — the same method as your performance sheet. Founders are flexible, scored on delivery and hours. Pick <b>Last month</b> above for a monthly sheet, or use <b>Export</b> for CSV/Excel/PDF.</p>`;
     return;
   }
 
