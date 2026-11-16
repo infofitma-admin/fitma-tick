@@ -407,6 +407,7 @@ function navItems(){
   n.push(["projects","Projects & tasks"],["shots","Screenshots"],["download","Download app"]);
   if(planAtLeast("pro")) n.push(["timeoff","Time off"],["shifts","Shifts"]);
   if(isMgr()) n.push(["reports","Reports"]);
+  if(isMgr()) n.push(["timereq","Time requests"]);
   if(isMgr()) n.push(["balance","Work-life balance"]);
   if(isMgr()&&planAtLeast("pro")) n.push(["finance","Finances"]);
   if(isMgr()) n.push(["settings","Settings"]);
@@ -446,7 +447,7 @@ function renderShell(){
 }
 function closeRail(){const r=app.querySelector("#rail"),s=app.querySelector("#scrim");if(r)r.classList.remove("open");if(s)s.hidden=true;}
 function setActive(v){app.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
-  const titles={overview:"Overview",timesheet:"My timesheet",team:"Team",projects:"Projects & tasks",shots:"Screenshots",reports:"Reports",finance:"Finances",timeoff:"Time off",shifts:"Shifts",settings:"Settings",billing:"Billing & plan",operator:"Operator — all companies"};
+  const titles={overview:"Overview",timesheet:"My timesheet",team:"Team",projects:"Projects & tasks",shots:"Screenshots",reports:"Reports",timereq:"Time requests",finance:"Finances",timeoff:"Time off",shifts:"Shifts",settings:"Settings",billing:"Billing & plan",operator:"Operator — all companies"};
   app.querySelector("#viewtitle").textContent=titles[v]||v;}
 function content(){return app.querySelector("#content");}
 function renderLoader(t){app.innerHTML=`<div class="loader"><div class="spin"></div><div>${esc(t||"Loading…")}</div></div>`;}
@@ -459,6 +460,7 @@ async function loadView(v){
     else if(v==="timesheet") await viewTimesheet();
     else if(v==="calendar") await viewCalendar();
     else if(v==="balance") await viewBalance();
+    else if(v==="timereq") await viewTimeRequests();
     else if(v==="download") await viewDownload();
     else if(v==="team") await viewTeam();
     else if(v==="projects") await viewProjects();
@@ -736,6 +738,63 @@ async function viewOverview(){
 
 /* =================== TIMESHEET (web timer) =================== */
 let timer={running:false,startedAt:null,projectId:null,taskId:null,tick:null,entryId:null};
+/* =================== TIME REQUESTS / EDITOR (admin) =================== */
+let treqState={filter:'all'};
+async function viewTimeRequests(){
+  const c=content(); const me=state.user.id;
+  const [{data:mems},{data:projs},{data:reqs}]=await Promise.all([
+    sb.from("memberships").select("user_id,role").eq("company_id",cid()).eq("status","active"),
+    sb.from("projects").select("id,name").eq("company_id",cid()).eq("archived",false).order("name"),
+    sb.from("manual_time_requests").select("*").eq("company_id",cid()).order("created_at",{ascending:false}).limit(200)
+  ]);
+  const list=reqs||[];
+  const pm=await profilesMap([...new Set((mems||[]).map(m=>m.user_id).concat(list.map(r=>r.user_id)).concat(list.map(r=>r.decided_by).filter(Boolean)))]);
+  const nameOf=u=>pm[u]||(u===me?'You':'Member');
+  const pmap={}; (projs||[]).forEach(p=>pmap[p.id]=p.name);
+  const pending=list.filter(r=>r.status==='pending'), hist=list.filter(r=>r.status!=='pending');
+  const shown=treqState.filter==='all'?hist:hist.filter(r=>r.status===treqState.filter);
+  const memList=(mems||[]).map(m=>m.user_id).sort((a,b)=>nameOf(a).localeCompare(nameOf(b)));
+  const today=new Date().toISOString().slice(0,10);
+  c.innerHTML=`
+   <div class="card" style="padding:16px 18px">
+     <h3 style="margin:0 0 12px">Add time for a member</h3>
+     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+       <div class="field" style="margin:0"><label>Member</label><select id="ta_member">${memList.map(u=>`<option value="${u}">${esc(nameOf(u))}</option>`).join("")}</select></div>
+       <div class="field" style="margin:0"><label>Project</label><select id="ta_proj"><option value="">No project</option>${(projs||[]).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select></div>
+       <div class="field" style="margin:0"><label>Date</label><input type="date" id="ta_date" value="${today}" max="${today}"></div>
+       <div class="field" style="margin:0;max-width:110px"><label>Hours</label><input type="number" id="ta_hrs" min="0.25" step="0.25" placeholder="e.g. 2"></div>
+       <div class="field" style="margin:0;flex:1;min-width:140px"><label>Note (optional)</label><input id="ta_note" placeholder="Reason"></div>
+       <button class="btn pri" id="ta_add">Add time</button>
+     </div>
+     <p class="hint" style="margin-top:8px">Adds the time straight to that member's timesheet (approved automatically).</p>
+   </div>
+   ${pending.length?`<div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Pending approval</h3><span class="pill warn">${pending.length}</span></div>
+     <div style="overflow-x:auto"><table><thead><tr><th>Member</th><th>Date</th><th>Project</th><th class="tnum" style="text-align:right">Duration</th><th>Reason</th><th></th></tr></thead><tbody>
+     ${pending.map(r=>`<tr><td>${esc(nameOf(r.user_id))}</td><td style="white-space:nowrap">${fmtDate(r.work_date)}</td><td>${r.project_id?esc(pmap[r.project_id]||'Project'):'<span class="muted">—</span>'}</td><td class="tnum" style="text-align:right;font-weight:600">${fmtDur(r.duration_sec)}</td><td class="muted" style="font-size:13px">${r.note?esc(r.note):'—'}</td><td style="text-align:right;white-space:nowrap"><button class="btn acc sm" data-appr="${r.id}">Approve</button> <button class="btn ghost sm" data-rej="${r.id}">Reject</button></td></tr>`).join("")}
+     </tbody></table></div></div>`:''}
+   <div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>History &amp; edit log</h3>
+     <select id="treq_filter" class="filt"><option value="all">All</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select></div>
+     ${shown.length?`<div style="overflow-x:auto"><table><thead><tr><th>Member</th><th>Date</th><th>Project</th><th class="tnum" style="text-align:right">Duration</th><th>Status</th><th>Decided by</th><th class="tnum" style="text-align:right">When</th></tr></thead><tbody>
+     ${shown.map(r=>`<tr><td>${esc(nameOf(r.user_id))}</td><td style="white-space:nowrap">${fmtDate(r.work_date)}</td><td>${r.project_id?esc(pmap[r.project_id]||'Project'):'<span class="muted">—</span>'}</td><td class="tnum" style="text-align:right;font-weight:600">${fmtDur(r.duration_sec)}</td><td><span class="pill ${r.status==='approved'?'good':'crit'}">${esc(r.status)}</span></td><td>${r.decided_by?esc(nameOf(r.decided_by)):'<span class="muted">—</span>'}</td><td class="tnum" style="text-align:right;white-space:nowrap">${r.decided_at?new Date(r.decided_at).toLocaleDateString():'—'}</td></tr>`).join("")}
+     </tbody></table></div>`:`<div class="empty">No ${treqState.filter==='all'?'':esc(treqState.filter)+' '}requests yet.</div>`}
+   </div>`;
+  enhanceSelects(c);
+  c.querySelector("#treq_filter").value=treqState.filter;
+  c.querySelector("#treq_filter").onchange=e=>{treqState.filter=e.target.value;viewTimeRequests();};
+  c.querySelectorAll("[data-appr]").forEach(b=>b.onclick=async()=>{b.disabled=true;const {error}=await sb.rpc("approve_manual_time",{p_id:b.dataset.appr});if(error){alert2(error.message);b.disabled=false;return;}loadView("timereq");});
+  c.querySelectorAll("[data-rej]").forEach(b=>b.onclick=async()=>{b.disabled=true;await sb.from("manual_time_requests").update({status:"rejected",decided_by:me,decided_at:new Date().toISOString()}).eq("id",b.dataset.rej);loadView("timereq");});
+  c.querySelector("#ta_add").onclick=async()=>{
+    const member=c.querySelector("#ta_member").value, proj=c.querySelector("#ta_proj").value||null, date=c.querySelector("#ta_date").value, hrs=parseFloat(c.querySelector("#ta_hrs").value), note=c.querySelector("#ta_note").value.trim();
+    if(!member||!date||!hrs||hrs<=0){alert2("Pick a member, date and hours.");return;}
+    const btn=c.querySelector("#ta_add"); btn.disabled=true; btn.textContent="Adding…";
+    const {data:req,error}=await sb.from("manual_time_requests").insert({company_id:cid(),user_id:member,project_id:proj,work_date:date,duration_sec:Math.round(hrs*3600),note:note||"Added by admin",status:"pending"}).select().single();
+    if(error){alert2("Couldn't add: "+error.message);btn.disabled=false;btn.textContent="Add time";return;}
+    const {error:e2}=await sb.rpc("approve_manual_time",{p_id:req.id});
+    if(e2){alert2("Saved as a request, but auto-approve failed: "+e2.message);}
+    loadView("timereq");
+  };
+}
+
 async function viewTimesheet(){
   const mgr=isMgr(); const me=state.user.id;
   const [{data:projs},{data:entries},{data:mreqs}]=await Promise.all([
