@@ -549,7 +549,7 @@ async function viewBalance(){
   const nameOf=u=>pm[u]||(u===state.user.id?"You":"Member");
   const {data:ents}=await sb.from("time_entries").select("user_id,duration_sec,started_at").eq("company_id",cid()).gte("started_at",fromISO);
   const byUD={}; (ents||[]).forEach(e=>{const u=e.user_id,k=dkey(new Date(e.started_at));(byUD[u]=byUD[u]||{});byUD[u][k]=(byUD[u][k]||0)+(e.duration_sec||0);});
-  const rows=(mems||[]).map(m=>{const u=m.user_id;const days=byUD[u]||{};const keys=Object.keys(days);
+  const rows=(mems||[]).filter(m=>!(companyHasSchedules()&&m.role==="owner")).map(m=>{const u=m.user_id;const days=byUD[u]||{};const keys=Object.keys(days);
     let total=0,ot=0,weekend=0,longest=0;
     keys.forEach(k=>{const s=days[k];total+=s;if(s>8*3600)ot+=s-8*3600;if(s>longest)longest=s;const g=new Date(k+"T00:00:00").getDay();if(g===0||g===6)weekend+=s;});
     const present=keys.length; const avg=present?total/present:0;
@@ -1523,8 +1523,8 @@ async function viewReports(){
     }).sort((x,y)=>(y.overall==null?-1:y.overall)-(x.overall==null?-1:x.overall));
     const summaryFor=r=>{const a=r.a; if(a.untracked) return 'No tracking yet — this person isn’t using the tracker';
       if(a.founder) return `Flexible · ${fmtDur(a.trackedMin*60)} logged over ${a.flexPresent} day(s)`+(r.due?` · ${r.on}/${r.due} tasks on time`:'');
-      const bits=[]; bits.push(a.lateCount===0?`On time every day (${a.present} day${a.present!==1?'s':''})`:`${a.present-a.lateCount}/${a.present} days on time`);
-      if(a.absent) bits.push(`${a.absent} absent`); if(a.lateMin) bits.push(`${a.lateMin} min late total`); if(r.due) bits.push(`${r.on}/${r.due} tasks on time`); return bits.join(' · ');};
+      const bits=[]; bits.push(a.lateCount===0?`On time every day (${a.attendedDays} day${a.attendedDays!==1?'s':''})`:`${a.attendedDays-a.lateCount}/${a.attendedDays} mornings on time`);
+      if(a.offDays) bits.push(`${a.offDays} day(s) off-hours`); if(a.absent) bits.push(`${a.absent} absent`); if(a.lateMin) bits.push(`${a.lateMin} min late total`); if(r.due) bits.push(`${r.on}/${r.due} tasks on time`); return bits.join(' · ');};
     const teamScores=prows.filter(r=>!r.founder&&!r.a.untracked&&r.overall!=null).map(r=>r.overall); const teamScore=teamScores.length?Math.round(teamScores.reduce((a,b)=>a+b,0)/teamScores.length):null;
     const totLate=prows.reduce((s,r)=>s+((r.founder||r.a.untracked)?0:r.a.lateCount),0), totStarts=prows.reduce((s,r)=>s+((r.founder||r.a.untracked)?0:r.a.attendedDays),0);
     _reportExport={name:`performance-${dkey(from)}.csv`,title:`Performance — ${rangeLabel}`,sub:teamScore!=null?`Team score ${teamScore}`:'',rows:[["Member","Schedule","Working days","Present","Absent","Late starts","On-time %","Hours tracked","Required hrs","Tasks on time","Tasks due","Score","Grade"]].concat(prows.map(r=>{const a=r.a;return [r.name,SCHED_LBL(a.sc),a.founder?'':a.working,a.founder?a.flexPresent:a.present,a.founder?'':a.absent,a.founder?'':a.lateCount,a.founder?'':(a.onTimePct==null?'':a.onTimePct),hrs(a.trackedMin*60).toFixed(2),a.founder?'':hrs(a.requiredMin*60).toFixed(2),r.on,r.due,r.overall,r.grade.g];}))};
