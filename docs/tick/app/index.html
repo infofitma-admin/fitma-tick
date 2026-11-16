@@ -930,7 +930,7 @@ function taskModal(pid){
 let shotsState={date:null,user:"all"};
 async function viewShots(){
   const c=content();
-  if(!shotsState.date) shotsState.date=dkey(new Date());
+  if(!shotsState.date){ try{ const {data:ld}=await sb.from("screenshots").select("captured_at").eq("company_id",cid()).order("captured_at",{ascending:false}).limit(1); shotsState.date=(ld&&ld[0])?dkey(new Date(ld[0].captured_at)):dkey(new Date()); }catch(e){ shotsState.date=dkey(new Date()); } }
   const day=shotsState.date;
   const from=new Date(day+"T00:00:00"), to=new Date(from.getTime()+864e5);
   const {data:mems}=await sb.from("memberships").select("user_id,role").eq("company_id",cid()).eq("status","active");
@@ -1156,7 +1156,7 @@ function reportRange(key){const now=new Date();let from,to=new Date(now);to.setH
 function daysBetween(from,to){const a=[];const d=new Date(from);d.setHours(0,0,0,0);const end=new Date(to);while(d<=end){a.push(new Date(d));d.setDate(d.getDate()+1);}return a;}
 const dkey=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 const hrs=sec=>(Math.max(0,sec||0)/3600);
-let reportsState={tab:"hours",range:"week",member:"all",project:"all",group:"member",cfrom:null,cto:null};
+let reportsState={tab:"hours",range:"last30",member:"all",project:"all",group:"member",cfrom:null,cto:null};
 let _reportExport=null;
 
 async function viewReports(){
