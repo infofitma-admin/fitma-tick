@@ -1295,6 +1295,61 @@ function reportRange(key){const now=new Date();let from,to=new Date(now);to.setH
 function daysBetween(from,to){const a=[];const d=new Date(from);d.setHours(0,0,0,0);const end=new Date(to);while(d<=end){a.push(new Date(d));d.setDate(d.getDate()+1);}return a;}
 const dkey=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 const hrs=sec=>(Math.max(0,sec||0)/3600);
+/* ===== Work schedules — punctuality-based attendance & performance (mirrors the Fitma Apps Script engine) ===== */
+const SCHED_BY_NAME={
+  "azri riyas":{plan:"std4",gender:"M",join:"2026-10-01",friFrom930:"2026-11-01"},
+  "aadhil ahamed":{plan:"std4",gender:"M",join:"2026-10-19"},
+  "safiyya jaufer":{plan:"std4",gender:"F",join:"2026-10-22"},
+  "sadhir aamir":{plan:"std3",gender:"M",join:"2026-10-21"},
+  "hasan thaslim":{plan:"founder",gender:"M"},
+  "ashfa ahamed":{plan:"founder",gender:"F"}
+};
+function companyHasSchedules(){ return /fitma/i.test((state.company&&state.company.name)||""); }
+function schedForName(name){ return SCHED_BY_NAME[String(name||"").trim().toLowerCase()]||null; }
+const SCHED_LBL=sc=>!sc?"—":sc.plan==="founder"?"Flexible":sc.plan==="std4"?"9:00 AM · 4h/day":"9:00 AM · 3h/day";
+// shift windows [[startMin,endMin],...] for a schedule on date d; null = flexible/unscheduled, [] = day off
+function shiftsForSched(sc,d){
+  if(!sc||sc.plan==="founder"||!sc.plan) return null;
+  const dow=d.getDay();
+  if(dow===0||dow===6) return [];
+  if(dow===5){ let fs=540; if(sc.friFrom930&&dkey(d)>=sc.friFrom930) fs=570;   // Friday Jummah split; Azri 9:30 from Nov 1
+    if(sc.gender==="F") return [[fs,690],[960,1050]];
+    return sc.plan==="std4"?[[fs,660],[960,1080]]:[[fs,660],[960,1020]]; }
+  return sc.plan==="std4"?[[540,720],[780,840]]:[[540,720]];                     // Mon–Thu
+}
+// Per-member attendance over [from,to], from day data {firstMin,lastMin,sec} keyed by user→day
+function buildAtt(members,byUserDay,from,to,schedOf){
+  const out={};
+  for(const u of members){
+    const sc=schedOf(u), ud=byUserDay[u]||{}, founder=!sc||sc.plan==="founder";
+    const st={sc,founder,working:0,present:0,absent:0,lateCount:0,lateMin:0,earlyCount:0,earlyMin:0,requiredMin:0,trackedMin:0,flexPresent:0,startSum:0,startN:0,days:[]};
+    const start=sc&&sc.join?new Date(Math.max(from.getTime(),new Date(sc.join+"T00:00:00").getTime())):new Date(from);
+    for(const d of daysBetween(start,to)){
+      const k=dkey(d), cell=ud[k], sh=shiftsForSched(sc,d);
+      if(sh===null){ if(cell){st.flexPresent++; st.trackedMin+=cell.sec/60;} continue; }
+      if(!sh.length){ if(cell) st.trackedMin+=cell.sec/60; continue; }
+      st.working++; st.requiredMin+=sh.reduce((a,s)=>a+s[1]-s[0],0);
+      if(!cell){ st.absent++; st.days.push({k,status:'absent'}); continue; }
+      st.present++; st.trackedMin+=cell.sec/60; st.startSum+=cell.firstMin; st.startN++;
+      const late=Math.max(0,Math.round(cell.firstMin-sh[0][0])), early=Math.max(0,Math.round(sh[sh.length-1][1]-cell.lastMin));
+      if(late>0){st.lateCount++; st.lateMin+=late;}
+      if(early>0){st.earlyCount++; st.earlyMin+=early;}
+      st.days.push({k,status:late>0?'late':'ontime',late,early,startMin:cell.firstMin});
+    }
+    const s={};
+    s.punctuality=st.present?Math.max(0,(st.present-st.lateCount)/st.present*100-st.lateMin*0.25):100;
+    s.completion =st.present?Math.max(0,(st.present-st.earlyCount)/st.present*100-st.earlyMin*0.15):100;
+    s.attendance =st.working?st.present/st.working*100:100;
+    s.hours      =st.requiredMin?Math.min(100,st.trackedMin/st.requiredMin*100):100;
+    st.scores=s;
+    st.avgStartMin=st.startN?Math.round(st.startSum/st.startN):null;
+    st.onTimePct=st.present?Math.round((st.present-st.lateCount)/st.present*100):null;
+    out[u]=st;
+  }
+  return out;
+}
+const mmToClock=m=>m==null?"—":(()=>{let h=Math.floor(m/60),mm=m%60,ap=h<12?"AM":"PM",hh=((h+11)%12)+1;return hh+":"+String(mm).padStart(2,"0")+" "+ap;})();
+
 let reportsState={tab:"hours",range:"last30",member:"all",project:"all",group:"member",cfrom:null,cto:null};
 let _reportExport=null;
 
@@ -1417,6 +1472,56 @@ async function viewReports(){
   const E=ents||[];
   // which members to show as rows — narrowed when a single member is selected
   const members=(reportsState.member!=="all"?[reportsState.member]:(mems||[]).map(m=>m.user_id));
+  // per-member per-day first start / last end / seconds — feeds punctuality-based attendance & performance
+  const byUserDay={};
+  E.forEach(e=>{const st=new Date(e.started_at);const u=e.user_id;const k=dkey(st);(byUserDay[u]=byUserDay[u]||{});
+    const c=byUserDay[u][k]||{firstMin:1e9,lastMin:-1,sec:0};
+    const fm=st.getHours()*60+st.getMinutes(); if(fm<c.firstMin)c.firstMin=fm;
+    const en=e.ended_at?new Date(e.ended_at):st; const lm=en.getHours()*60+en.getMinutes(); if(lm>c.lastMin)c.lastMin=lm;
+    c.sec+=(e.duration_sec||0); byUserDay[u][k]=c;});
+  const hasSched=companyHasSchedules();
+  const schedOf=u=>hasSched?schedForName(nameOf(u)):null;
+
+  if(reportsState.tab==="performance"&&hasSched){
+    // ---- Punctuality-based performance (mirrors the Fitma Apps Script engine) ----
+    const {data:tsk}=await sb.from("tasks").select("assigned_to,status,due_date").eq("company_id",cid());
+    const fromDay=dkey(from),toDay=dkey(to); const tDue={},tOn={};
+    (tsk||[]).forEach(t=>{ if(!t.assigned_to||!t.due_date||t.due_date<fromDay||t.due_date>toDay) return; tDue[t.assigned_to]=(tDue[t.assigned_to]||0)+1; if(t.status==="done") tOn[t.assigned_to]=(tOn[t.assigned_to]||0)+1; });
+    const att=buildAtt(members,byUserDay,from,to,schedOf);
+    const W={punctuality:.25,completion:.15,attendance:.20,hours:.15,delivery:.25};
+    const gradeOf=s=>s==null?{g:'—',cls:'muted'}:s>=92?{g:'Excellent',cls:'good'}:s>=82?{g:'Strong',cls:'good'}:s>=72?{g:'Steady',cls:'accent'}:s>=60?{g:'Needs focus',cls:'warn'}:{g:'At risk',cls:'crit'};
+    const prows=members.map(u=>{
+      const a=att[u], s=a.scores, due=tDue[u]||0, on=tOn[u]||0, delivery=due?Math.round(on/due*100):null, dScore=delivery!=null?delivery:100;
+      let overall;
+      if(a.founder){ overall=Math.round(dScore*0.6+Math.round(s.hours)*0.4); }
+      else { overall=Math.round(s.punctuality*W.punctuality+s.completion*W.completion+s.attendance*W.attendance+s.hours*W.hours+dScore*W.delivery); }
+      return {u,name:nameOf(u),a,due,on,delivery,overall,founder:a.founder,grade:gradeOf(overall)};
+    }).sort((x,y)=>y.overall-x.overall);
+    const summaryFor=r=>{const a=r.a; if(a.founder) return `Flexible · ${fmtDur(a.trackedMin*60)} logged over ${a.flexPresent} day(s)`+(r.due?` · ${r.on}/${r.due} tasks on time`:'');
+      const bits=[]; bits.push(a.lateCount===0?`On time every day (${a.present} day${a.present!==1?'s':''})`:`${a.present-a.lateCount}/${a.present} days on time`);
+      if(a.absent) bits.push(`${a.absent} absent`); if(a.lateMin) bits.push(`${a.lateMin} min late total`); if(r.due) bits.push(`${r.on}/${r.due} tasks on time`); return bits.join(' · ');};
+    const teamScores=prows.filter(r=>!r.founder).map(r=>r.overall); const teamScore=teamScores.length?Math.round(teamScores.reduce((a,b)=>a+b,0)/teamScores.length):null;
+    const totLate=prows.reduce((s,r)=>s+(r.founder?0:r.a.lateCount),0), totStarts=prows.reduce((s,r)=>s+(r.founder?0:r.a.present),0);
+    _reportExport={name:`performance-${dkey(from)}.csv`,title:`Performance — ${rangeLabel}`,sub:teamScore!=null?`Team score ${teamScore}`:'',rows:[["Member","Schedule","Working days","Present","Absent","Late starts","On-time %","Hours tracked","Required hrs","Tasks on time","Tasks due","Score","Grade"]].concat(prows.map(r=>{const a=r.a;return [r.name,SCHED_LBL(a.sc),a.founder?'':a.working,a.founder?a.flexPresent:a.present,a.founder?'':a.absent,a.founder?'':a.lateCount,a.founder?'':(a.onTimePct==null?'':a.onTimePct),hrs(a.trackedMin*60).toFixed(2),a.founder?'':hrs(a.requiredMin*60).toFixed(2),r.on,r.due,r.overall,r.grade.g];}))};
+    body.innerHTML=`
+     <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+       <div class="card stat"><div class="k">Team score</div><div class="v tnum">${teamScore!=null?teamScore:'—'}</div><div class="sub">${rangeLabel}</div></div>
+       <div class="card stat"><div class="k">On-time starts</div><div class="v tnum">${totStarts?Math.round((totStarts-totLate)/totStarts*100):'—'}${totStarts?'%':''}</div><div class="sub">${totStarts-totLate} of ${totStarts} working days</div></div>
+       <div class="card stat"><div class="k">Tasks on time</div><div class="v tnum">${prows.reduce((s,r)=>s+r.on,0)}<span style="font-size:15px;color:var(--faint)"> / ${prows.reduce((s,r)=>s+r.due,0)}</span></div><div class="sub">across the team</div></div>
+     </div>
+     <div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Performance by member</h3><span class="muted" style="font-size:13px">${rangeLabel}</span></div>
+      ${prows.length?`<div style="overflow-x:auto"><table><thead><tr><th>Member</th><th style="text-align:center">Present</th><th style="text-align:center">On-time</th><th class="tnum" style="text-align:right">Hours</th><th style="text-align:center">Tasks</th><th style="text-align:center">Score</th><th>Grade</th></tr></thead><tbody>
+       ${prows.map(r=>{const a=r.a;return `<tr><td><div style="display:flex;align-items:center;gap:9px"><div class="avatar" style="width:28px;height:28px;font-size:11px">${esc(initials(r.name))}</div><div><div style="font-weight:600">${esc(r.name)}</div><div class="muted" style="font-size:11px">${esc(summaryFor(r))}</div></div></div></td>
+         <td style="text-align:center">${a.founder?'<span class="muted">Flexible</span>':(a.present+'/'+a.working)}</td>
+         <td style="text-align:center">${a.founder?'<span class="muted">—</span>':(a.onTimePct==null?'<span class="muted">—</span>':a.onTimePct+'%')}</td>
+         <td class="tnum" style="text-align:right;font-weight:600">${a.trackedMin?fmtDur(a.trackedMin*60):'<span class="muted">—</span>'}</td>
+         <td style="text-align:center">${r.due?r.on+'/'+r.due:'<span class="muted">—</span>'}</td>
+         <td style="text-align:center"><span class="pill ${r.grade.cls}">${r.overall!=null?r.overall:'—'}</span></td>
+         <td><span class="pill ${r.grade.cls}">${r.grade.g}</span></td></tr>`;}).join("")}
+      </tbody></table></div>`:`<div class="empty">No members to score in this range.</div>`}
+      <p class="hint" style="padding:10px 18px">Score blends punctuality (25%), finishing shifts (15%), attendance (20%), hours tracked (15%) and on-time task delivery (25%) — the same method as your performance sheet. Founders are on a flexible schedule, scored on delivery and hours.</p></div>`;
+    return;
+  }
 
   if(reportsState.tab==="performance"){
     let actq=sb.from("activity_samples").select("user_id,activity_pct").eq("company_id",cid()).gte("sampled_at",fromISO).lte("sampled_at",toISO);
@@ -1506,6 +1611,30 @@ async function viewReports(){
       <div style="overflow-x:auto"><table><thead><tr><th>Member</th>${dayCols.map(d=>`<th class="tnum" style="text-align:right">${d.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</th>`).join("")}<th class="tnum" style="text-align:right">Total</th></tr></thead><tbody>
       ${members.map(u=>{const tot=days.reduce((s,d)=>s+((grid[u]||{})[dkey(d)]||0),0);return `<tr><td style="font-weight:600;white-space:nowrap">${esc(nameOf(u))}</td>${dayCols.map(d=>{const v=(grid[u]||{})[dkey(d)]||0;return `<td class="tnum" style="text-align:right;${v?'':'color:var(--faint)'}">${v?hrs(v).toFixed(1):'—'}</td>`;}).join("")}<td class="tnum" style="text-align:right;font-weight:700">${hrs(tot).toFixed(1)}</td></tr>`;}).join("")}
       </tbody></table></div></div>`;
+    return;
+  }
+
+  if(reportsState.tab==="attendance"&&hasSched){
+    // ---- Attendance sheet: scheduled start vs real start → on time / late / absent ----
+    const att=buildAtt(members,byUserDay,from,to,schedOf);
+    const rows=members.map(u=>({u,name:nameOf(u),a:att[u]})).sort((x,y)=>(y.a.founder?-1:y.a.present)-(x.a.founder?-1:x.a.present));
+    _reportExport={name:`attendance-${dkey(from)}.csv`,title:`Attendance — ${rangeLabel}`,sub:`${daysBetween(from,to).length} day(s)`,rows:[["Member","Schedule","Working days","Present","Absent","Late starts","On-time %","Avg start","Left early (times)","Hours tracked"]].concat(rows.map(r=>{const a=r.a;return [r.name,SCHED_LBL(a.sc),a.founder?'':a.working,a.founder?a.flexPresent:a.present,a.founder?'':a.absent,a.founder?'':a.lateCount,a.founder?'':(a.onTimePct==null?'':a.onTimePct),a.founder?'':mmToClock(a.avgStartMin),a.founder?'':a.earlyCount,hrs(a.trackedMin*60).toFixed(2)];}))};
+    const single=reportsState.member!=="all"&&members.length===1&&att[members[0]]&&!att[members[0]].founder?att[members[0]]:null;
+    body.innerHTML=`<div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Attendance</h3><span class="muted" style="font-size:13px">${rangeLabel} · scheduled 9:00 AM start</span></div>
+      <div style="overflow-x:auto"><table><thead><tr><th>Member</th><th>Schedule</th><th class="tnum" style="text-align:right">Present</th><th class="tnum" style="text-align:right">Absent</th><th class="tnum" style="text-align:right">Late</th><th class="tnum" style="text-align:right">On-time</th><th class="tnum" style="text-align:right">Avg start</th><th class="tnum" style="text-align:right">Left early</th></tr></thead><tbody>
+      ${rows.map(r=>{const a=r.a;return `<tr><td><div style="display:flex;align-items:center;gap:9px"><div class="avatar" style="width:26px;height:26px;font-size:11px">${esc(initials(r.name))}</div>${esc(r.name)}</div></td>
+        <td class="muted" style="font-size:12px">${SCHED_LBL(a.sc)}</td>
+        ${a.founder?`<td class="tnum" style="text-align:right">${a.flexPresent}</td><td colspan="5" class="muted" style="text-align:center;font-size:12px">Flexible schedule — not scored on punctuality</td>`:
+        `<td class="tnum" style="text-align:right;font-weight:600">${a.present}<span class="muted" style="font-weight:400">/${a.working}</span></td>
+         <td class="tnum" style="text-align:right;${a.absent?'color:var(--warn,#b45309);font-weight:600':''}">${a.absent||'—'}</td>
+         <td class="tnum" style="text-align:right;${a.lateCount?'font-weight:600':''}">${a.lateCount?a.lateCount+' ('+a.lateMin+'m)':'—'}</td>
+         <td class="tnum" style="text-align:right"><span class="pill ${a.onTimePct==null?'muted':a.onTimePct>=90?'good':a.onTimePct>=70?'accent':'warn'}">${a.onTimePct==null?'—':a.onTimePct+'%'}</span></td>
+         <td class="tnum" style="text-align:right">${mmToClock(a.avgStartMin)}</td>
+         <td class="tnum" style="text-align:right">${a.earlyCount||'—'}</td>`}</tr>`;}).join("")}
+      </tbody></table></div>
+      ${single?`<div style="padding:4px 18px 14px"><div class="muted" style="font-size:12px;margin:10px 0 6px;font-weight:600">Day by day — ${esc(nameOf(members[0]))}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">${single.days.slice().reverse().map(d=>{const cls=d.status==='ontime'?'good':d.status==='late'?'accent':'warn';const lbl=d.status==='ontime'?'On time':d.status==='late'?('Late '+d.late+'m'):'Absent';const dt=new Date(d.k+'T00:00:00');return `<div class="pill ${cls}" title="${d.k}" style="font-size:11px">${dt.toLocaleDateString(undefined,{weekday:'short',day:'numeric'})}${d.status!=='absent'?' · '+mmToClock(d.startMin):''} · ${lbl}</div>`;}).join("")||'<span class="muted" style="font-size:12px">No working days in range.</span>'}</div></div>`:''}
+      <p class="hint" style="padding:10px 18px">A day counts as <b>late</b> when tracking starts after the scheduled time (even by a minute), <b>absent</b> when a working day has no tracked time, and weekends/holidays are skipped. Pick one member to see their day-by-day record.</p></div>`;
     return;
   }
 
