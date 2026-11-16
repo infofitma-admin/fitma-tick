@@ -787,10 +787,8 @@ async function viewTimeRequests(){
     const member=c.querySelector("#ta_member").value, proj=c.querySelector("#ta_proj").value||null, date=c.querySelector("#ta_date").value, hrs=parseFloat(c.querySelector("#ta_hrs").value), note=c.querySelector("#ta_note").value.trim();
     if(!member||!date||!hrs||hrs<=0){alert2("Pick a member, date and hours.");return;}
     const btn=c.querySelector("#ta_add"); btn.disabled=true; btn.textContent="Adding…";
-    const {data:req,error}=await sb.from("manual_time_requests").insert({company_id:cid(),user_id:member,project_id:proj,work_date:date,duration_sec:Math.round(hrs*3600),note:note||"Added by admin",status:"pending"}).select().single();
+    const {error}=await sb.rpc("admin_add_member_time",{p_user:member,p_project:proj,p_work_date:date,p_seconds:Math.round(hrs*3600),p_note:note||"Added by admin"});
     if(error){alert2("Couldn't add: "+error.message);btn.disabled=false;btn.textContent="Add time";return;}
-    const {error:e2}=await sb.rpc("approve_manual_time",{p_id:req.id});
-    if(e2){alert2("Saved as a request, but auto-approve failed: "+e2.message);}
     loadView("timereq");
   };
 }
