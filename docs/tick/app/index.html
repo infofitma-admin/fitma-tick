@@ -1299,7 +1299,9 @@ async function viewReports(){
     const avgAct=u=>actBy[u]&&actBy[u].n?Math.round(actBy[u].s/actBy[u].n):null;
     const fromDay=dkey(from),toDay=dkey(to); const tDue={},tOn={};
     (tsk||[]).forEach(t=>{ if(!t.assigned_to||!t.due_date||t.due_date<fromDay||t.due_date>toDay) return; tDue[t.assigned_to]=(tDue[t.assigned_to]||0)+1; if(t.status==="done") tOn[t.assigned_to]=(tOn[t.assigned_to]||0)+1; });
-    const workDays=daysBetween(from,to).filter(d=>{const g=d.getDay();return g>=1&&g<=5;}).length;
+    const _starts=E.map(e=>e.started_at); const _dataStart=_starts.length?_starts.reduce((m,s)=>s<m?s:m):fromISO;
+    const _attFrom=new Date(Math.max(from.getTime(), new Date(new Date(_dataStart).setHours(0,0,0,0)).getTime()));
+    const workDays=daysBetween(_attFrom,to).filter(d=>{const g=d.getDay();return g>=1&&g<=5;}).length;
     const gradeOf=s=>s==null?{g:'—',cls:'muted'}:s>=85?{g:'Excellent',cls:'good'}:s>=70?{g:'Good',cls:'good'}:s>=50?{g:'Needs work',cls:'warn'}:{g:'At risk',cls:'crit'};
     const prows=members.map(u=>{
       const sec=secBy[u]||0,a=avgAct(u),due=tDue[u]||0,on=tOn[u]||0,delivery=due?Math.round(on/due*100):null;
