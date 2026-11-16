@@ -620,12 +620,13 @@ async function viewOverview(){
   const yISO=new Date(new Date(todayISO).getTime()-864e5).toISOString();
   const l7ISO=new Date(new Date(todayISO).getTime()-6*864e5).toISOString();
   const since18h=new Date(Date.now()-18*3600e3).toISOString();
-  const [{data:mems},{data:ents},{data:projs},{data:shots},{data:openEnts}]=await Promise.all([
+  const [{data:mems},{data:ents},{data:projs},{data:shots},{data:openEnts},{data:tasks}]=await Promise.all([
     sb.from("memberships").select("user_id,role").eq("company_id",cid()).eq("status","active"),
-    sb.from("time_entries").select("user_id,duration_sec,started_at").eq("company_id",cid()).gte("started_at",lastWkISO),
+    sb.from("time_entries").select("user_id,duration_sec,started_at,project_id").eq("company_id",cid()).gte("started_at",lastWkISO),
     sb.from("projects").select("id,name").eq("company_id",cid()).eq("archived",false),
     sb.from("screenshots").select("user_id,activity_pct,captured_at").eq("company_id",cid()).gte("captured_at",l7ISO),
-    sb.from("time_entries").select("user_id,started_at,project_id").eq("company_id",cid()).is("ended_at",null).gte("started_at",since18h)
+    sb.from("time_entries").select("user_id,started_at,project_id").eq("company_id",cid()).is("ended_at",null).gte("started_at",since18h),
+    sb.from("tasks").select("status,due_date").eq("company_id",cid())
   ]);
   const pm=await profilesMap((mems||[]).map(m=>m.user_id));
   const nameOf=u=>pm[u]||(u===state.user.id?(state.user.user_metadata?.full_name||"You"):"Member");
@@ -656,11 +657,22 @@ async function viewOverview(){
   const members=(mems||[]).slice().sort((a,b)=>(puToday[b.user_id]||0)-(puToday[a.user_id]||0));
   const maxWk=Math.max(1,...Object.values(puWeek),1);
   const maxL7=Math.max(1,...Object.values(puL7),1);
+  // time distribution by project (last 7 days) + task status summary — WebWork-style dashboard widgets
+  const byProj={}; (ents||[]).forEach(e=>{ if(e.started_at>=l7ISO){ const k=e.project_id||"__none"; byProj[k]=(byProj[k]||0)+(e.duration_sec||0); } });
+  const projDist=Object.entries(byProj).map(([k,v])=>({name:k==="__none"?"No project":(projNm[k]||"Project"),sec:v})).sort((a,b)=>b.sec-a.sec).slice(0,6);
+  const maxProj=Math.max(1,...projDist.map(p=>p.sec));
+  const todayKey=dkey(new Date()), soonKey=dkey(new Date(Date.now()+3*864e5));
+  let tDone=0,tMissed=0,tSoon=0,tOpen=0;
+  (tasks||[]).forEach(t=>{ if(t.status==="done"){tDone++;} else if(t.due_date&&t.due_date<todayKey){tMissed++;} else if(t.due_date&&t.due_date<=soonKey){tSoon++;} else {tOpen++;} });
+  const tTotal=tDone+tMissed+tSoon+tOpen;
+  const tSeg=[["#16a34a",tDone,"Done"],["#dc2626",tMissed,"Missed"],["#d97706",tSoon,"Approaching"],["#94a3b8",tOpen,"On-time / open"]];
+  let _acc=0; const tStops=tTotal?tSeg.filter(s=>s[1]>0).map(s=>{const a=_acc/tTotal*360;_acc+=s[1];return `${s[0]} ${a}deg ${_acc/tTotal*360}deg`;}).join(","):"#e5e7eb 0deg 360deg";
   const c=content();
   c.innerHTML=`
    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
      <div class="card stat"><div class="k">Tracked · last 7 days</div><div class="v tnum">${fmtDur(secL7)}</div><div class="sub">${fmtDur(secToday)} today</div></div>
      <div class="card stat"><div class="k">This week</div><div class="v tnum">${fmtDur(secWeek)}</div><div class="sub">${delta(secWeek,secLastWk)}${fmtDur(secLastWk)} last week</div></div>
+     <div class="card stat"><div class="k">Yesterday</div><div class="v tnum">${fmtDur(secYest)}</div><div class="sub">across the team</div></div>
      <div class="card stat"><div class="k">Tracking today</div><div class="v tnum">${activeToday}<span style="font-size:15px;color:var(--faint)"> / ${mems?.length||0}</span></div><div class="sub">people active</div></div>
      <div class="card stat"><div class="k">Active projects</div><div class="v tnum">${projs?.length||0}</div><div class="sub">not archived</div></div>
    </div>
@@ -669,6 +681,23 @@ async function viewOverview(){
        ${pendMT?`<a href="#" onclick="window.loadView('timesheet');return false" class="pill warn" style="text-decoration:none">${pendMT} manual time to approve</a>`:''}
        ${pendTO?`<a href="#" onclick="window.loadView('timeoff');return false" class="pill warn" style="text-decoration:none">${pendTO} time-off request${pendTO>1?'s':''}</a>`:''}
      </div></div>`:''}
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
+     <div class="card" style="padding:16px 18px">
+       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h3 style="margin:0">Time distribution</h3><span class="muted" style="font-size:12px">by project · last 7 days</span></div>
+       ${projDist.length?projDist.map(p=>`<div style="display:flex;align-items:center;gap:10px;margin:7px 0"><div style="flex:1;min-width:0"><div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div><div class="bar" style="margin-top:3px"><i style="width:${Math.round(p.sec/maxProj*100)}%"></i></div></div><span class="tnum" style="font-weight:600;font-size:13px;white-space:nowrap">${fmtDur(p.sec)}</span></div>`).join(""):`<div class="empty" style="padding:20px">No tracked time this week yet.</div>`}
+     </div>
+     <div class="card" style="padding:16px 18px">
+       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h3 style="margin:0">Tasks</h3><span class="muted" style="font-size:12px">${tTotal} total</span></div>
+       <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+         <div style="width:118px;height:118px;border-radius:50%;background:conic-gradient(${tStops});display:flex;align-items:center;justify-content:center;flex:0 0 auto">
+           <div style="width:78px;height:78px;border-radius:50%;background:var(--surface,#fff);display:flex;flex-direction:column;align-items:center;justify-content:center"><div style="font-family:var(--fh);font-size:22px;font-weight:700;line-height:1">${tTotal}</div><div class="muted" style="font-size:10px">tasks</div></div>
+         </div>
+         <div style="flex:1;min-width:120px">
+           ${tSeg.map(s=>`<div style="display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px"><span style="width:11px;height:11px;border-radius:3px;background:${s[0]};flex:0 0 auto"></span><span style="flex:1">${s[2]}</span><span class="tnum" style="font-weight:600">${s[1]}</span></div>`).join("")}
+         </div>
+       </div>
+     </div>
+   </div>
    ${liveUsers.length?`<div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Tracking now</h3><span class="pill good">${liveUsers.length} live</span></div>
      <div style="display:flex;flex-direction:column">
      ${liveUsers.map(u=>{const e=liveBy[u];const nm=nameOf(u);return `<div style="display:flex;align-items:center;gap:11px;padding:10px 18px;border-top:1px solid var(--border)">
