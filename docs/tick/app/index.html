@@ -1408,12 +1408,12 @@ let _reportExport=null;
 async function viewReports(){
   const c=content();
   const pro=planAtLeast("pro"); const proOnly={attendance:1,apps:1};
-  const tabs=[["hours","Tracked hours"],["performance","Performance"],["timesheet","Timesheet"],["attendance","Attendance"],["apps","Apps & websites"]];
+  const tabs=[["hours","Tracked hours"],["performance","Performance"],["timeline","Timeline"],["timesheet","Timesheet"],["attendance","Attendance"],["expected","Worked vs expected"],["budget","Project budgeting"],["rates","Rates & amounts"],["apps","Apps & websites"]];
   const mgr=isMgr();
   // member + project lists (and assignments) up front so the filters can be populated
   const [{data:mems},{data:projs},{data:asgRows}]=await Promise.all([
     sb.from("memberships").select("user_id,role").eq("company_id",cid()).eq("status","active"),
-    sb.from("projects").select("id,name").eq("company_id",cid()).order("name"),
+    sb.from("projects").select("id,name,budget_hours,bill_rate,client").eq("company_id",cid()).order("name"),
     sb.from("project_members").select("project_id,user_id").eq("company_id",cid())
   ]);
   const pm=await profilesMap((mems||[]).map(m=>m.user_id));
@@ -1640,6 +1640,63 @@ async function viewReports(){
          <td><span class="pill ${r.grade.cls}">${r.grade.g}</span></td></tr>`).join("")}
       </tbody></table></div>`:`<div class="empty">No members to score in this range.</div>`}
       <p class="hint" style="padding:10px 18px">Score blends activity, attendance (days worked), hours and on-time task delivery — the same idea as the old performance sheet. Add shift times in Shifts to also score punctuality.</p></div>`;
+    return;
+  }
+
+  if(reportsState.tab==="timeline"){
+    const days=daysBetween(from,to); const day=days[days.length-1], dayK=dkey(day);
+    const byU={}; E.forEach(e=>{ if(dkey(new Date(e.started_at))===dayK){(byU[e.user_id]=byU[e.user_id]||[]).push(e);} });
+    const START=6,END=23,span=(END-START)*60; const rowsM=members.filter(u=>byU[u]&&byU[u].length);
+    const ticks=[]; for(let h=START;h<=END;h+=2)ticks.push(h);
+    body.innerHTML=`<div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Timeline</h3><span class="muted" style="font-size:13px">${day.toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'})} · when each person worked</span></div>
+     ${rowsM.length?`<div style="padding:4px 18px 16px;overflow-x:auto"><div style="min-width:620px">
+       <div style="display:flex;margin-left:150px;font-size:11px;color:var(--muted);margin-bottom:4px">${ticks.map(h=>`<div style="flex:1">${((h+11)%12)+1}${h<12?'am':'pm'}</div>`).join("")}</div>
+       ${rowsM.map(u=>{const nm=nameOf(u);const blocks=byU[u].map(e=>{const s=new Date(e.started_at),en=e.ended_at?new Date(e.ended_at):s;const sm=(s.getHours()*60+s.getMinutes())-START*60,em=(en.getHours()*60+en.getMinutes())-START*60;if(em<=0||sm>=span)return'';const left=Math.max(0,sm)/span*100,w=Math.max(0.6,(Math.min(span,em)-Math.max(0,sm))/span*100);return `<div title="${esc(projName[e.project_id]||'No project')} · ${s.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}–${en.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}" style="position:absolute;left:${left}%;width:${w}%;top:3px;bottom:3px;background:#2563eb;border-radius:3px;opacity:.85"></div>`;}).join("");
+         return `<div style="display:flex;align-items:center;margin:5px 0"><div style="width:150px;font-size:13px;display:flex;align-items:center;gap:8px"><div class="avatar" style="width:24px;height:24px;font-size:10px">${esc(initials(nm))}</div><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(nm)}</span></div><div style="flex:1;position:relative;height:26px;background:var(--surface-2,#f1f3f6);border-radius:5px">${blocks}</div></div>`;}).join("")}
+     </div></div>`:`<div class="empty">No tracked time on ${dayK}. Pick a range ending on a working day.</div>`}
+     <p class="hint" style="padding:0 18px 12px">Each blue block is a tracked work session. Shows the last day in your selected range.</p></div>`;
+    return;
+  }
+  if(reportsState.tab==="expected"){
+    const att=buildAtt(members,byUserDay,from,to,schedOf,capEnd);
+    const rows=members.map(u=>{const a=att[u];const exp=a.requiredMin/60,wk=a.trackedMin/60,pct=exp?Math.round(wk/exp*100):null;return {u,name:nameOf(u),a,exp,wk,pct,diff:wk-exp};}).sort((x,y)=>y.wk-x.wk);
+    _reportExport={name:`worked-vs-expected-${dkey(from)}.csv`,title:`Worked vs expected — ${rangeLabel}`,rows:[["Member","Expected hrs","Worked hrs","Difference","%"]].concat(rows.map(r=>[r.name,r.a.founder?'':r.exp.toFixed(2),r.wk.toFixed(2),r.a.founder?'':r.diff.toFixed(2),r.a.founder?'':(r.pct==null?'':r.pct)]))};
+    body.innerHTML=`<div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Worked vs expected</h3><span class="muted" style="font-size:13px">${rangeLabel}</span></div>
+     <div style="overflow-x:auto"><table><thead><tr><th>Member</th><th class="tnum" style="text-align:right">Expected</th><th class="tnum" style="text-align:right">Worked</th><th style="width:30%">Progress</th><th class="tnum" style="text-align:right">Difference</th></tr></thead><tbody>
+     ${rows.map(r=>{const a=r.a;if(a.founder)return `<tr><td>${esc(r.name)}</td><td colspan="4" class="muted" style="text-align:center;font-size:12px">Flexible schedule — ${fmtDur(r.wk*3600)} worked</td></tr>`;
+       const pct=r.pct==null?0:r.pct;const col=pct>=100?'#16a34a':pct>=80?'#d97706':'#dc2626';
+       return `<tr><td><div style="display:flex;align-items:center;gap:9px"><div class="avatar" style="width:26px;height:26px;font-size:11px">${esc(initials(r.name))}</div>${esc(r.name)}</div></td>
+       <td class="tnum" style="text-align:right">${fmtDur(r.exp*3600)}</td>
+       <td class="tnum" style="text-align:right;font-weight:600">${fmtDur(r.wk*3600)}</td>
+       <td><div style="height:9px;background:var(--surface-2,#eef1f5);border-radius:5px;overflow:hidden"><i style="display:block;height:100%;width:${Math.min(100,pct)}%;background:${col}"></i></div><div class="muted" style="font-size:11px;margin-top:2px">${r.pct==null?'—':r.pct+'%'}</div></td>
+       <td class="tnum" style="text-align:right;color:${r.diff>=0?'#16a34a':'#dc2626'};font-weight:600">${r.diff>=0?'+':''}${fmtDur(Math.abs(r.diff)*3600)}</td></tr>`;}).join("")}
+     </tbody></table></div><p class="hint" style="padding:10px 18px">"Expected" is each person's scheduled hours for the days they were active (9:00 AM shifts). Founders are flexible, so no target.</p></div>`;
+    return;
+  }
+  if(reportsState.tab==="budget"){
+    const byProj={}; E.forEach(e=>{const k=e.project_id||"__none";byProj[k]=(byProj[k]||0)+(e.duration_sec||0);});
+    const rows=(projs||[]).filter(p=>byProj[p.id]||p.budget_hours).map(p=>{const used=(byProj[p.id]||0)/3600,budg=p.budget_hours||0,pct=budg?Math.round(used/budg*100):null;return {name:p.name,used,budg,pct};}).sort((a,b)=>b.used-a.used);
+    _reportExport={name:`project-budget-${dkey(from)}.csv`,title:`Project budgeting — ${rangeLabel}`,rows:[["Project","Used hrs","Budget hrs","% used"]].concat(rows.map(r=>[r.name,r.used.toFixed(2),r.budg||'',r.pct==null?'':r.pct]))};
+    body.innerHTML=`<div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Project budgeting</h3><span class="muted" style="font-size:13px">${rangeLabel}</span></div>
+     ${rows.length?`<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th class="tnum" style="text-align:right">Used</th><th class="tnum" style="text-align:right">Budget</th><th style="width:34%">Used of budget</th></tr></thead><tbody>
+     ${rows.map(r=>{const pct=r.pct==null?0:r.pct;const over=pct>100;const col=over?'#dc2626':pct>=80?'#d97706':'#16a34a';
+       return `<tr><td>${esc(r.name)}</td><td class="tnum" style="text-align:right;font-weight:600">${fmtDur(r.used*3600)}</td><td class="tnum" style="text-align:right">${r.budg?r.budg+'h':'<span class="muted">—</span>'}</td>
+       <td>${r.pct==null?'<span class="muted" style="font-size:12px">No budget set</span>':`<div style="height:9px;background:var(--surface-2,#eef1f5);border-radius:5px;overflow:hidden"><i style="display:block;height:100%;width:${Math.min(100,pct)}%;background:${col}"></i></div><div class="muted" style="font-size:11px;margin-top:2px">${pct}%${over?' · over budget':''}</div>`}</td></tr>`;}).join("")}
+     </tbody></table></div>`:`<div class="empty">No project time in this range.</div>`}
+     <p class="hint" style="padding:10px 18px">Set a project's budget hours in Projects & tasks to track it here.</p></div>`;
+    return;
+  }
+  if(reportsState.tab==="rates"){
+    const byProj={}; E.forEach(e=>{const k=e.project_id||"__none";byProj[k]=(byProj[k]||0)+(e.duration_sec||0);});
+    const rows=(projs||[]).filter(p=>byProj[p.id]).map(p=>{const h=(byProj[p.id]||0)/3600,rate=p.bill_rate||0;return {name:p.name,hrs:h,rate,amount:h*rate};}).sort((a,b)=>b.amount-a.amount);
+    const total=rows.reduce((s,r)=>s+r.amount,0), anyRate=rows.some(r=>r.rate>0);
+    _reportExport={name:`rates-amounts-${dkey(from)}.csv`,title:`Rates & amounts — ${rangeLabel}`,rows:[["Project","Hours","Rate/hr","Amount"]].concat(rows.map(r=>[r.name,r.hrs.toFixed(2),r.rate||'',r.amount.toFixed(2)]))};
+    body.innerHTML=`<div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Rates & amounts</h3><span class="muted" style="font-size:13px">${rangeLabel}</span></div>
+     ${rows.length?`<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th class="tnum" style="text-align:right">Hours</th><th class="tnum" style="text-align:right">Rate/hr</th><th class="tnum" style="text-align:right">Amount</th></tr></thead><tbody>
+     ${rows.map(r=>`<tr><td>${esc(r.name)}</td><td class="tnum" style="text-align:right">${fmtDur(r.hrs*3600)}</td><td class="tnum" style="text-align:right">${r.rate?r.rate.toLocaleString():'<span class="muted">—</span>'}</td><td class="tnum" style="text-align:right;font-weight:600">${r.amount?r.amount.toLocaleString(undefined,{maximumFractionDigits:0}):'<span class="muted">0</span>'}</td></tr>`).join("")}
+     <tr><td style="font-weight:700">Total</td><td></td><td></td><td class="tnum" style="text-align:right;font-weight:700">${total.toLocaleString(undefined,{maximumFractionDigits:0})}</td></tr>
+     </tbody></table></div>`:`<div class="empty">No project time in this range.</div>`}
+     <p class="hint" style="padding:10px 18px">${anyRate?'Amount = tracked hours × each project’s rate.':'Set an hourly rate on a project (in Projects & tasks) to see billable amounts here. Your team is on fixed salaries, so this is mainly for client billing.'}</p></div>`;
     return;
   }
 
