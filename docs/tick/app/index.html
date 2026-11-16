@@ -701,23 +701,30 @@ function manualEntry(projs){
 /* =================== TEAM =================== */
 async function viewTeam(){
   app.querySelector("#topright").innerHTML=`<button class="btn pri sm" id="invbtn">+ Invite</button>`;
-  const [{data:mems},{data:invites}]=await Promise.all([
+  const l30ISO=new Date(Date.now()-30*864e5).toISOString();
+  const [{data:mems},{data:invites},{data:tent},{data:tact}]=await Promise.all([
     sb.from("memberships").select("*").eq("company_id",cid()).order("created_at"),
-    sb.from("invites").select("*").eq("company_id",cid()).is("accepted_at",null).order("created_at",{ascending:false})
+    sb.from("invites").select("*").eq("company_id",cid()).is("accepted_at",null).order("created_at",{ascending:false}),
+    sb.from("time_entries").select("user_id,duration_sec").eq("company_id",cid()).gte("started_at",l30ISO),
+    sb.from("activity_samples").select("user_id,activity_pct").eq("company_id",cid()).gte("sampled_at",l30ISO)
   ]);
   const pm=await profilesMap((mems||[]).map(m=>m.user_id));
+  const secBy={}; (tent||[]).forEach(e=>{secBy[e.user_id]=(secBy[e.user_id]||0)+(e.duration_sec||0);});
+  const actBy={}; (tact||[]).forEach(a=>{if(a.activity_pct!=null){(actBy[a.user_id]=actBy[a.user_id]||{s:0,n:0});actBy[a.user_id].s+=a.activity_pct;actBy[a.user_id].n++;}});
+  const avgAct=u=>actBy[u]&&actBy[u].n?Math.round(actBy[u].s/actBy[u].n):null;
   app.querySelector("#invbtn").onclick=inviteModal;
   const c=content();
   c.innerHTML=`
    <div class="card">
      <div class="sec-head" style="padding:16px 18px 10px"><h3>Members</h3><span class="pill muted">${mems?.length||0}</span></div>
-     <table><thead><tr><th>Member</th><th>Title</th><th>Team</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>
+     <table><thead><tr><th>Member</th><th>Title</th><th>Role</th><th>Status</th><th class="tnum" style="text-align:right">Tracked (30d)</th><th style="text-align:center">Activity</th><th></th></tr></thead><tbody>
      ${(mems||[]).map(m=>{const nm=pm[m.user_id]||(m.user_id===state.user.id?"You":"Member");const self=m.user_id===state.user.id;const mg=isMgr();
        return `<tr><td><div style="display:flex;align-items:center;gap:9px"><div class="avatar" style="width:26px;height:26px;font-size:11px">${esc(initials(nm))}</div>${esc(nm)}${self?' <span class="muted">(you)</span>':''}</div></td>
        <td>${m.title?esc(m.title):'<span class="faint">—</span>'}</td>
-       <td>${m.team?`<span class="pill muted">${esc(m.team)}</span>`:'<span class="faint">—</span>'}</td>
        <td><span class="pill ${["owner","admin"].includes(m.role)?'accent':'muted'}">${esc(m.role)}</span></td>
        <td><span class="pill good">${esc(m.status)}</span></td>
+       <td class="tnum" style="text-align:right;font-weight:600">${secBy[m.user_id]?fmtDur(secBy[m.user_id]):'<span class="faint">—</span>'}</td>
+       <td style="text-align:center">${avgAct(m.user_id)!=null?activityRing(avgAct(m.user_id)):'<span class="faint">—</span>'}</td>
        <td style="text-align:right;white-space:nowrap">${mg?`<button class="kebab" data-mid="${m.id}" title="Actions">${DOTS}</button>`:''}</td></tr>`;}).join("")}
      </tbody></table>
    </div>
