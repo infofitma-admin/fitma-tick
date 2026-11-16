@@ -1277,6 +1277,7 @@ async function viewLive(){
      <p class="hint" style="max-width:480px;margin:8px auto 0">This board lights up when the Fitma Tick desktop app is running on a member's computer. Their status, current task, activity level, apps &amp; websites and latest screenshot appear here in real time.</p></div></div>`:''}
    <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(250px,1fr))">
      ${rows.map(r=>{const thumb=r.shot?(urlMap[r.shot.thumb_path||r.shot.storage_path]||""):"";
+       const workLabel=r.open?'Working on':r.cur?'Last worked':'Status';
        const work=r.cur?`${r.cur.project_id?esc(projName[r.cur.project_id]||'Project'):'<span class="muted">No project</span>'}${r.cur.task_id&&taskName[r.cur.task_id]?' · '+esc(taskName[r.cur.task_id]):''}`:'<span class="muted">Not tracking today</span>';
        const appLine=r.app?`${esc(r.app.app_name||r.app.host||'App')}${r.app.host?' · '+esc(r.app.host):''}`:'<span class="muted">—</span>';
        return `<div class="card" style="padding:0;overflow:hidden">
@@ -1287,7 +1288,7 @@ async function viewLive(){
                <div style="display:flex;align-items:center;gap:5px;font-size:12px" class="muted">${dot(r.st.cls)}${r.st.t}</div></div>
              <span class="pill ${actCls(r.actPct)}" style="flex:none" title="Activity level">${r.actPct==null?'—':r.actPct+'%'}</span>
            </div>
-           <div style="margin-top:9px;font-size:12.5px;color:var(--muted);display:flex;gap:6px"><span style="flex:none">Working on</span><span style="color:var(--fg);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${work}</span></div>
+           <div style="margin-top:9px;font-size:12.5px;color:var(--muted);display:flex;gap:6px"><span style="flex:none">${workLabel}</span><span style="color:var(--fg);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${work}</span></div>
            <div class="bar" style="margin-top:7px"><i style="width:${r.actPct||0}%"></i></div>
            <div style="margin-top:9px;font-size:12.5px;display:flex;gap:6px"><span class="muted" style="flex:none">App</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${appLine}</span></div>
            <div style="margin-top:9px;display:flex;align-items:center;justify-content:space-between;gap:8px">
