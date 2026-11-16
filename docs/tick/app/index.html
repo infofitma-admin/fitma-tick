@@ -1293,33 +1293,45 @@ async function viewReports(){
     let actq=sb.from("activity_samples").select("user_id,activity_pct").eq("company_id",cid()).gte("sampled_at",fromISO).lte("sampled_at",toISO);
     if(reportsState.member!=="all") actq=actq.eq("user_id",reportsState.member);
     const [{data:acts},{data:tsk}]=await Promise.all([actq, sb.from("tasks").select("assigned_to,status,due_date").eq("company_id",cid())]);
-    const secBy={}; E.forEach(e=>{secBy[e.user_id]=(secBy[e.user_id]||0)+(e.duration_sec||0);});
+    const secBy={},daysByU={};
+    E.forEach(e=>{secBy[e.user_id]=(secBy[e.user_id]||0)+(e.duration_sec||0);(daysByU[e.user_id]=daysByU[e.user_id]||new Set()).add(dkey(new Date(e.started_at)));});
     const actBy={}; (acts||[]).forEach(a=>{ if(a.activity_pct!=null){(actBy[a.user_id]=actBy[a.user_id]||{s:0,n:0});actBy[a.user_id].s+=a.activity_pct;actBy[a.user_id].n++;} });
     const avgAct=u=>actBy[u]&&actBy[u].n?Math.round(actBy[u].s/actBy[u].n):null;
     const fromDay=dkey(from),toDay=dkey(to); const tDue={},tOn={};
     (tsk||[]).forEach(t=>{ if(!t.assigned_to||!t.due_date||t.due_date<fromDay||t.due_date>toDay) return; tDue[t.assigned_to]=(tDue[t.assigned_to]||0)+1; if(t.status==="done") tOn[t.assigned_to]=(tOn[t.assigned_to]||0)+1; });
-    const prows=members.map(u=>{ const sec=secBy[u]||0,a=avgAct(u),due=tDue[u]||0,on=tOn[u]||0,delivery=due?Math.round(on/due*100):null;
-      let score=(a!=null&&delivery!=null)?Math.round(a*0.5+delivery*0.5):(a!=null?a:(delivery!=null?delivery:null));
-      return {u,name:nameOf(u),sec,a,due,on,delivery,score}; }).sort((x,y)=>(y.score==null?-1:y.score)-(x.score==null?-1:x.score));
-    const scoreCls=s=>s==null?'muted':s>=75?'good':s>=50?'warn':'crit';
-    const noteFor=r=>{const bits=[]; if(r.sec>0)bits.push(fmtDur(r.sec)+' tracked'); if(r.a!=null)bits.push(r.a+'% activity'); if(r.due)bits.push(r.on+'/'+r.due+' tasks on time'); return bits.join(' · ')||'No tracked activity in this range';};
+    const workDays=daysBetween(from,to).filter(d=>{const g=d.getDay();return g>=1&&g<=5;}).length;
+    const gradeOf=s=>s==null?{g:'—',cls:'muted'}:s>=85?{g:'Excellent',cls:'good'}:s>=70?{g:'Good',cls:'good'}:s>=50?{g:'Needs work',cls:'warn'}:{g:'At risk',cls:'crit'};
+    const prows=members.map(u=>{
+      const sec=secBy[u]||0,a=avgAct(u),due=tDue[u]||0,on=tOn[u]||0,delivery=due?Math.round(on/due*100):null;
+      const present=daysByU[u]?daysByU[u].size:0;
+      const attendance=workDays?Math.min(100,Math.round(present/workDays*100)):null;
+      const hoursScore=workDays?Math.min(100,Math.round(sec/(workDays*8*3600)*100)):null;
+      const parts=[]; if(a!=null)parts.push([a,0.30]); if(delivery!=null)parts.push([delivery,0.25]); if(attendance!=null)parts.push([attendance,0.25]); if(hoursScore!=null)parts.push([hoursScore,0.20]);
+      const wsum=parts.reduce((s,p)=>s+p[1],0);
+      const score=parts.length?Math.round(parts.reduce((s,p)=>s+p[0]*p[1],0)/wsum):null;
+      return {u,name:nameOf(u),sec,a,due,on,delivery,present,attendance,hoursScore,score,grade:gradeOf(score)};
+    }).sort((x,y)=>(y.score==null?-1:y.score)-(x.score==null?-1:x.score));
+    const summaryFor=r=>{ if(r.score==null)return 'No tracked activity in this range.';
+      const bits=[fmtDur(r.sec)+' over '+r.present+'/'+workDays+' working days']; if(r.a!=null)bits.push(r.a+'% activity'); if(r.due)bits.push(r.on+'/'+r.due+' tasks on time'); return bits.join(' · '); };
     const scored=prows.map(r=>r.score).filter(x=>x!=null); const teamScore=scored.length?Math.round(scored.reduce((a,b)=>a+b,0)/scored.length):null;
-    _reportExport={name:`performance-${dkey(from)}.csv`,title:`Performance — ${rangeLabel}`,sub:teamScore!=null?`Team score ${teamScore}`:'',rows:[["Member","Hours","Avg activity %","Tasks on time","Tasks due","Score"]].concat(prows.map(r=>[r.name,hrs(r.sec).toFixed(2),r.a==null?'':r.a,r.on,r.due,r.score==null?'':r.score]))};
+    _reportExport={name:`performance-${dkey(from)}.csv`,title:`Performance — ${rangeLabel}`,sub:teamScore!=null?`Team score ${teamScore}`:'',rows:[["Member","Hours","Present days","Working days","Activity %","Attendance %","Tasks on time","Tasks due","Score","Grade"]].concat(prows.map(r=>[r.name,hrs(r.sec).toFixed(2),r.present,workDays,r.a==null?'':r.a,r.attendance==null?'':r.attendance,r.on,r.due,r.score==null?'':r.score,r.grade.g]))};
     body.innerHTML=`
      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
        <div class="card stat"><div class="k">Team score</div><div class="v tnum">${teamScore!=null?teamScore:'—'}</div><div class="sub">${rangeLabel}</div></div>
-       <div class="card stat"><div class="k">People tracked</div><div class="v tnum">${prows.filter(r=>r.sec>0).length}</div><div class="sub">of ${members.length}</div></div>
+       <div class="card stat"><div class="k">Working days</div><div class="v tnum">${workDays}</div><div class="sub">Mon–Fri in range</div></div>
        <div class="card stat"><div class="k">Tasks on time</div><div class="v tnum">${prows.reduce((s,r)=>s+r.on,0)}<span style="font-size:15px;color:var(--faint)"> / ${prows.reduce((s,r)=>s+r.due,0)}</span></div><div class="sub">across the team</div></div>
      </div>
      <div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Performance by member</h3><span class="muted" style="font-size:13px">${rangeLabel}</span></div>
-      ${prows.length?`<div style="overflow-x:auto"><table><thead><tr><th>Member</th><th class="tnum" style="text-align:right">Hours</th><th style="text-align:center">Activity</th><th style="text-align:center">Tasks on time</th><th style="text-align:center">Score</th></tr></thead><tbody>
-       ${prows.map(r=>`<tr><td><div style="display:flex;align-items:center;gap:9px"><div class="avatar" style="width:28px;height:28px;font-size:11px">${esc(initials(r.name))}</div><div><div style="font-weight:600">${esc(r.name)}</div><div class="muted" style="font-size:11px">${esc(noteFor(r))}</div></div></div></td>
+      ${prows.length?`<div style="overflow-x:auto"><table><thead><tr><th>Member</th><th class="tnum" style="text-align:right">Hours</th><th style="text-align:center">Present</th><th style="text-align:center">Activity</th><th style="text-align:center">Tasks</th><th style="text-align:center">Score</th><th>Grade</th></tr></thead><tbody>
+       ${prows.map(r=>`<tr><td><div style="display:flex;align-items:center;gap:9px"><div class="avatar" style="width:28px;height:28px;font-size:11px">${esc(initials(r.name))}</div><div><div style="font-weight:600">${esc(r.name)}</div><div class="muted" style="font-size:11px">${esc(summaryFor(r))}</div></div></div></td>
          <td class="tnum" style="text-align:right;font-weight:600">${r.sec?fmtDur(r.sec):'<span class="muted">—</span>'}</td>
+         <td style="text-align:center">${r.present?r.present+'/'+workDays:'<span class="muted">—</span>'}</td>
          <td style="text-align:center">${r.a!=null?activityRing(r.a):'<span class="muted">—</span>'}</td>
          <td style="text-align:center">${r.due?r.on+'/'+r.due:'<span class="muted">—</span>'}</td>
-         <td style="text-align:center"><span class="pill ${scoreCls(r.score)}">${r.score!=null?r.score:'—'}</span></td></tr>`).join("")}
+         <td style="text-align:center"><span class="pill ${r.grade.cls}">${r.score!=null?r.score:'—'}</span></td>
+         <td><span class="pill ${r.grade.cls}">${r.grade.g}</span></td></tr>`).join("")}
       </tbody></table></div>`:`<div class="empty">No members to score in this range.</div>`}
-      <p class="hint" style="padding:10px 18px">Score blends activity level and on-time task delivery. It sharpens as the team tracks with the desktop app and projects get tasks with due dates.</p></div>`;
+      <p class="hint" style="padding:10px 18px">Score blends activity, attendance (days worked), hours and on-time task delivery — the same idea as the old performance sheet. Add shift times in Shifts to also score punctuality.</p></div>`;
     return;
   }
 
