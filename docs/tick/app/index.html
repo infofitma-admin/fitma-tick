@@ -1270,8 +1270,12 @@ async function viewProjects(){
   const tByP={}; (tasks||[]).forEach(t=>{(tByP[t.project_id||"none"]=tByP[t.project_id||"none"]||[]).push(t);});
   if(isMgr())app.querySelector("#npbtn").onclick=projectModal;
   const c=content();
-  if(!projs||!projs.length){c.innerHTML=`<div class="card"><div class="empty">${ICON.projects}<div>No projects yet.${isMgr()?' Create your first one.':''}</div></div></div>`;return;}
-  c.innerHTML=projs.map(p=>{const ts=tByP[p.id]||[];const done=ts.filter(t=>t.status==='done').length;const asg=assignBy[p.id]||[];
+  // members only see projects they are assigned to (or have a task in); managers see all
+  let visProjs=projs||[];
+  if(!isMgr()){ const me=state.user.id; const myTaskProj=new Set((tasks||[]).filter(t=>t.assigned_to===me).map(t=>t.project_id));
+    visProjs=visProjs.filter(p=>(assignBy[p.id]||[]).includes(me)||myTaskProj.has(p.id)); }
+  if(!visProjs.length){c.innerHTML=`<div class="card"><div class="empty">${ICON.projects}<div>${isMgr()?'No projects yet. Create your first one.':'No projects assigned to you yet.'}</div></div></div>`;return;}
+  c.innerHTML=visProjs.map(p=>{const ts=tByP[p.id]||[];const done=ts.filter(t=>t.status==='done').length;const asg=assignBy[p.id]||[];
     const trkH=(trackedBy[p.id]||0)/3600; const budget=p.budget_hours?Number(p.budget_hours):0;
     const over=budget&&trkH>budget;
     const budgetBar=(budget&&!hideHours())?`<div style="margin-top:10px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span class="muted">Budget</span><span class="tnum" style="font-weight:600${over?';color:var(--heart)':''}">${trkH.toFixed(1)} / ${budget} h${over?' · over':''}</span></div><div class="bar ${over?'unproductive':'productive'}"><i style="width:${budget?Math.min(100,Math.round(trkH/budget*100)):0}%"></i></div></div>`:'';
