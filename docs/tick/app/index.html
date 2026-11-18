@@ -398,12 +398,23 @@ const ICON={
   balance:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M7 21h10M5 7h14"/><path d="M5 7l-2.5 5a2.5 2.5 0 0 0 5 0zM19 7l-2.5 5a2.5 2.5 0 0 0 5 0z"/></svg>',
   download:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M8 11l4 4 4-4M5 21h14"/></svg>',
   timereq:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v4l2.5 1.5"/><path d="M12 2.5v2M12 19.5v2"/></svg>',
-  live:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M5.5 5.5a9 9 0 0 0 0 13M18.5 5.5a9 9 0 0 1 0 13M8 8a5 5 0 0 0 0 8M16 8a5 5 0 0 1 0 8"/></svg>'};
+  live:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M5.5 5.5a9 9 0 0 0 0 13M18.5 5.5a9 9 0 0 1 0 13M8 8a5 5 0 0 0 0 8M16 8a5 5 0 0 1 0 8"/></svg>',
+  attendance:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/><path d="M8.5 14.5l2.5 2.5 4-4.5"/></svg>',
+  myperf:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v16h16"/><path d="M8 15l3-3 2 2 4-5"/><circle cx="20" cy="9" r="0"/></svg>'};
 function isMgr(){return ["owner","admin"].includes(state.membership.role);}
+// When ON for a company, staff (non-managers) never see tracked hours — they see attendance, performance and tasks instead. Managers always see hours.
+function staffHidesHours(){ return !!(((state.company&&state.company.settings&&state.company.settings.staff)||{}).hideHours); }
+function hideHours(){ return !isMgr() && staffHidesHours(); }
 const PLAN_RANK={trial:3,internal:3,starter:1,pro:2,business:3,enterprise:3};
 function planAtLeast(name){return (PLAN_RANK[(state.company&&state.company.plan_code)]||0)>=(PLAN_RANK[name]||0);}
 function planName(){const m={trial:"Free trial",starter:"Starter",pro:"Pro",business:"Business",internal:"Fitma Internal",enterprise:"Enterprise"};return m[state.company.plan_code]||state.company.plan_code;}
 function navItems(){
+  // Staff view when hours are hidden (e.g. Fitma's own team): no hour screens, show attendance & performance instead
+  if(hideHours()){
+    const sn=[["overview","Dashboard"],["attendance","My attendance"],["myperf","My performance"],["projects","Projects & tasks"],["shots","Screenshots"],["download","Download app"]];
+    if(planAtLeast("pro")) sn.push(["timeoff","Time off"]);
+    return sn;
+  }
   const n=[["overview","Overview"],["timesheet","My timesheet"],["calendar","Calendar"]];
   if(isMgr()) n.push(["team","Team"]);
   if(isMgr()) n.push(["live","Live"]);
@@ -450,12 +461,14 @@ function renderShell(){
 }
 function closeRail(){const r=app.querySelector("#rail"),s=app.querySelector("#scrim");if(r)r.classList.remove("open");if(s)s.hidden=true;}
 function setActive(v){app.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
-  const titles={overview:"Overview",timesheet:"My timesheet",team:"Team",live:"Live — who's working now",projects:"Projects & tasks",shots:"Screenshots",reports:"Reports",timereq:"Time requests",finance:"Finances",timeoff:"Time off",shifts:"Shifts",settings:"Settings",billing:"Billing & plan",operator:"Operator — all companies"};
-  app.querySelector("#viewtitle").textContent=titles[v]||v;}
+  const titles={overview:"Overview",timesheet:"My timesheet",team:"Team",live:"Live — who's working now",projects:"Projects & tasks",shots:"Screenshots",reports:"Reports",timereq:"Time requests",finance:"Finances",timeoff:"Time off",shifts:"Shifts",settings:"Settings",billing:"Billing & plan",operator:"Operator — all companies",attendance:"My attendance",myperf:"My performance"};
+  app.querySelector("#viewtitle").textContent=(hideHours()&&v==="overview")?"Dashboard":(titles[v]||v);}
 function content(){return app.querySelector("#content");}
 function renderLoader(t){app.innerHTML=`<div class="loader"><div class="spin"></div><div>${esc(t||"Loading…")}</div></div>`;}
 
 async function loadView(v){
+  // staff can't reach hour-based screens when hours are hidden
+  if(hideHours()&&["timesheet","calendar","shifts","reports","live","team","timereq","finance","balance"].includes(v)) v="overview";
   state.view=v; setActive(v); app.querySelector("#topright").innerHTML="";
   content().innerHTML='<div class="loader" style="min-height:200px"><div class="spin"></div></div>';
   try{
@@ -466,6 +479,8 @@ async function loadView(v){
     else if(v==="timereq") await viewTimeRequests();
     else if(v==="download") await viewDownload();
     else if(v==="team") await viewTeam();
+    else if(v==="attendance") await viewMyAttendance();
+    else if(v==="myperf") await viewMyPerformance();
     else if(v==="live") await viewLive();
     else if(v==="projects") await viewProjects();
     else if(v==="shots") await viewShots();
@@ -621,7 +636,171 @@ async function viewDownload(){
      </div>
    </div>`;
 }
+/* =================== STAFF VIEWS (shown when hours are hidden) =================== */
+// Build this member's own attendance via the shared engine (no hours surfaced)
+async function _staffAtt(from,to){
+  const me=state.user.id;
+  const pm=await profilesMap([me]);
+  const nameSelf=pm[me]||(state.user.user_metadata&&state.user.user_metadata.full_name)||"";
+  const {data:ents}=await sb.from("time_entries").select("started_at,ended_at,duration_sec").eq("company_id",cid()).eq("user_id",me).gte("started_at",from.toISOString()).lte("started_at",to.toISOString()).order("started_at");
+  const E=ents||[]; const byUD={}; byUD[me]={};
+  E.forEach(e=>{const s0=new Date(e.started_at),e0=e.ended_at?new Date(e.ended_at):s0,k=dkey(s0);
+    const cc=byUD[me][k]||{iv:[],sec:0}; const inM=s0.getHours()*60+s0.getMinutes()+s0.getSeconds()/60; let outM=e0.getHours()*60+e0.getMinutes()+e0.getSeconds()/60; if(outM<inM)outM=inM+(e.duration_sec||0)/60; cc.iv.push({in:inM,out:outM}); cc.sec+=(e.duration_sec||0); byUD[me][k]=cc;});
+  let capEnd=null; E.forEach(e=>{const dd=new Date(e.started_at); if(!capEnd||dd>capEnd)capEnd=dd;});
+  const att=buildAtt([me],byUD,from,to,()=>schedForName(nameSelf),capEnd);
+  return {me,nameSelf,att:att[me]};
+}
+function _monthRange(back){ const n=new Date(); const from=new Date(n.getFullYear(),n.getMonth()-(back||0),1); const to=(back>0)?new Date(n.getFullYear(),n.getMonth()-(back||0)+1,0,23,59,59,999):new Date(); return {from,to,label:from.toLocaleDateString(undefined,{month:'long',year:'numeric'})}; }
+async function _myTaskStats(from,to){
+  const me=state.user.id;
+  const {data:tsk}=await sb.from("tasks").select("title,status,due_date,project_id").eq("company_id",cid()).eq("assigned_to",me);
+  const T=tsk||[]; const fromDay=dkey(from),toDay=dkey(to); const todayKey=dkey(new Date()), soonKey=dkey(new Date(Date.now()+3*864e5));
+  let due=0,on=0; T.forEach(t=>{ if(t.due_date&&t.due_date>=fromDay&&t.due_date<=toDay){due++; if(t.status==="done")on++;} });
+  let done=0,overdue=0,soon=0,open=0; T.forEach(t=>{ if(t.status==="done")done++; else if(t.due_date&&t.due_date<todayKey)overdue++; else if(t.due_date&&t.due_date<=soonKey)soon++; else open++; });
+  return {T,due,on,delivery:due?Math.round(on/due*100):null,done,overdue,soon,open};
+}
+function _staffOverall(att,delivery){ if(att.untracked)return null; const s=att.scores; const ds=delivery!=null?delivery:100; return Math.round(s.punctuality*0.30+s.completion*0.20+s.attendance*0.25+ds*0.25); }
+const _gradeOf=s=>s==null?{g:'—',cls:'muted'}:s>=92?{g:'Excellent',cls:'good'}:s>=82?{g:'Strong',cls:'good'}:s>=72?{g:'Steady',cls:'accent'}:s>=60?{g:'Needs focus',cls:'warn'}:{g:'At risk',cls:'crit'};
+const _barCol=v=>v>=80?'#16a34a':v>=60?'#d97706':'#dc2626';
+const _factorBar=(label,score)=>{const v=score==null?0:Math.round(score);return `<div style="display:flex;align-items:center;gap:8px;margin:6px 0"><span style="width:130px;font-size:12.5px;color:var(--muted)">${label}</span><div style="flex:1;height:8px;background:var(--surface-2);border-radius:5px;overflow:hidden"><i style="display:block;height:100%;width:${Math.min(100,Math.max(0,v))}%;background:${_barCol(v)}"></i></div><span class="tnum" style="width:30px;text-align:right;font-weight:600;font-size:12px">${score==null?'—':v}</span></div>`;};
+
+async function viewStaffHome(){
+  const c=content(); const {from,to}=_monthRange(0);
+  const [{att,nameSelf},ts]=await Promise.all([_staffAtt(from,to), _myTaskStats(from,to)]);
+  const s=att.scores||{}; const overall=_staffOverall(att,ts.delivery); const grade=_gradeOf(overall);
+  const first=(nameSelf||"there").split(/\s+/)[0];
+  const hr=new Date().getHours(); const greet=hr<12?"Good morning":hr<17?"Good afternoon":"Good evening";
+  const todayKey=dkey(new Date()); const td=(att.days||[]).find(d=>d.k===todayKey);
+  const today=td?(td.status==='ontime'?{t:'On time today',cls:'good'}:td.status==='late'?{t:'Late start today',cls:'warn'}:td.status==='offhours'?{t:'Working today',cls:'accent'}:td.status==='absent'?{t:'Not tracked today',cls:'muted'}:{t:'Working today',cls:'accent'}):{t:'Not started yet',cls:'muted'};
+  const upcoming=(ts.T||[]).filter(t=>t.status!=="done"&&t.due_date).sort((a,b)=>a.due_date.localeCompare(b.due_date)).slice(0,6);
+  const {data:projs}=await sb.from("projects").select("id,name").eq("company_id",cid());
+  const projNm={}; (projs||[]).forEach(p=>projNm[p.id]=p.name);
+  c.innerHTML=`
+   <div class="card" style="padding:18px"><div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+     <div class="avatar" style="width:44px;height:44px;font-size:16px">${esc(initials(nameSelf||first))}</div>
+     <div style="flex:1;min-width:0"><div style="font-family:var(--fh);font-size:20px;font-weight:700">${esc(greet)}, ${esc(first)}</div>
+       <div class="muted" style="font-size:13px">${new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})}</div></div>
+     <span class="pill ${today.cls}">${today.t}</span>
+   </div></div>
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+     <div class="card stat"><div class="k">On-time this month</div><div class="v tnum">${att.onTimePct==null?'—':att.onTimePct+'%'}</div><div class="sub">${att.attendedDays?att.attendedDays-att.lateCount:0} of ${att.attendedDays||0} mornings</div></div>
+     <div class="card stat"><div class="k">Days present</div><div class="v tnum">${att.present||0}${att.working?'<span style="font-size:15px;color:var(--faint)"> / '+att.working+'</span>':''}</div><div class="sub">${att.absent?att.absent+' absent':'full attendance'}</div></div>
+     <div class="card stat"><div class="k">Performance</div><div class="v tnum">${overall!=null?overall:'—'}</div><div class="sub"><span class="pill ${grade.cls}" style="font-size:11px">${grade.g}</span></div></div>
+     <div class="card stat"><div class="k">Tasks on time</div><div class="v tnum">${ts.on}<span style="font-size:15px;color:var(--faint)"> / ${ts.due}</span></div><div class="sub">this month</div></div>
+   </div>
+   <div class="grid" style="grid-template-columns:1.2fr 1fr">
+     <div class="card"><div class="sec-head" style="padding:16px 18px 6px"><h3>Your tasks</h3><a href="#" onclick="window.loadView('projects');return false" style="font-size:13px">All tasks →</a></div>
+       <div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 18px 10px">
+         <span class="pill ${ts.overdue?'crit':'muted'}">${ts.overdue} overdue</span>
+         <span class="pill ${ts.soon?'warn':'muted'}">${ts.soon} due soon</span>
+         <span class="pill muted">${ts.open} open</span>
+         <span class="pill good">${ts.done} done</span>
+       </div>
+       ${upcoming.length?`<div style="overflow-x:auto"><table><tbody>
+         ${upcoming.map(t=>{const od=t.due_date<todayKey;return `<tr><td>${esc(t.title)}${t.project_id&&projNm[t.project_id]?`<div class="muted" style="font-size:11px">${esc(projNm[t.project_id])}</div>`:''}</td><td class="tnum" style="text-align:right;white-space:nowrap;${od?'color:var(--crit);font-weight:600':''}">${fmtDate(t.due_date)}</td></tr>`;}).join("")}
+       </tbody></table></div>`:`<div class="empty" style="padding:22px">No upcoming tasks with a deadline.</div>`}
+     </div>
+     <div class="card" style="padding:16px 18px"><div class="sec-head" style="padding:0 0 6px"><h3>This month</h3></div>
+       <div style="margin-top:6px">
+         ${_factorBar('Punctuality',s.punctuality)}
+         ${_factorBar('Finishing shifts',s.completion)}
+         ${_factorBar('Attendance',s.attendance)}
+         ${_factorBar('On-time delivery',ts.delivery)}
+       </div>
+       <p class="hint" style="margin-top:10px">See <a href="#" onclick="window.loadView('myperf');return false">My performance</a> for details and last month.</p>
+     </div>
+   </div>`;
+}
+
+function _staffFeedback(att,ts){
+  const good=[],imp=[]; const a=att;
+  if(a.untracked) return {good:[],imp:['No activity tracked yet this month — start the Fitma Tick app each day.']};
+  if(a.lateCount===0&&a.attendedDays) good.push(`On time for all ${a.attendedDays} morning${a.attendedDays!==1?'s':''}.`); else if(a.lateCount<=2&&a.attendedDays) good.push(`On time for ${a.attendedDays-a.lateCount} of ${a.attendedDays} mornings.`); else if(a.attendedDays) imp.push(`Late ${a.lateCount} of ${a.attendedDays} mornings — aim to start by your scheduled time.`);
+  if(a.earlyCount===0&&a.attendedDays) good.push('Finished every shift to the end.'); else if(a.earlyCount>=2) imp.push(`Ended ${a.earlyCount} shift(s) early or missed part of a shift.`);
+  if(a.absent===0&&a.working) good.push('Full attendance, no absences.'); else if(a.absent) imp.push(`${a.absent} working day(s) absent.`);
+  if(a.offDays) imp.push(`${a.offDays} day(s) worked outside your scheduled hours.`);
+  if(ts&&ts.due){ if(ts.delivery>=90) good.push(`Delivered ${ts.on} of ${ts.due} tasks on time.`); else if(ts.delivery<80) imp.push(`Only ${ts.on} of ${ts.due} tasks were on time.`); }
+  return {good,imp};
+}
+
+let myPerfBack=0;
+async function viewMyAttendance(){
+  const c=content(); const {from,to,label}=_monthRange(myPerfBack);
+  const {att,nameSelf}=await _staffAtt(from,to);
+  const dmap={}; (att.days||[]).forEach(d=>dmap[d.k]=d);
+  const Y=from.getFullYear(),M=from.getMonth(); const first=new Date(Y,M,1); const lead=(first.getDay()+6)%7; const dim=new Date(Y,M+1,0).getDate();
+  const todayKey=dkey(new Date());
+  const cellColor=st=>st==='ontime'?'#16a34a':st==='late'?'#d97706':st==='absent'?'#dc2626':st==='offhours'?'#6a8599':'';
+  const legend=[['#16a34a','On time'],['#d97706','Late'],['#dc2626','Absent'],['#6a8599','Off-hours']];
+  let cells='';
+  for(let i=0;i<lead;i++) cells+=`<div></div>`;
+  for(let d=1;d<=dim;d++){ const k=`${Y}-${String(M+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; const cell=dmap[k]; const col=cell?cellColor(cell.status):''; const isToday=k===todayKey;
+    cells+=`<div style="aspect-ratio:1;border:1px solid var(--border);border-radius:9px;padding:5px 7px;position:relative;${isToday?'box-shadow:0 0 0 2px var(--accent) inset':''}">
+      <div style="font-size:12px;color:var(--muted)">${d}</div>
+      ${col?`<div title="${cell.status}${cell.status==='late'&&cell.late?' ·'+cell.late+' min':''}" style="position:absolute;left:7px;bottom:6px;width:10px;height:10px;border-radius:50%;background:${col}"></div>`:''}
+      ${cell&&cell.startMin!=null&&cell.status!=='absent'?`<div class="tnum" style="position:absolute;right:6px;bottom:4px;font-size:10px;color:var(--faint)">${mmToClock(cell.startMin).replace(':00','')}</div>`:''}
+    </div>`;
+  }
+  c.innerHTML=`
+   <div class="card" style="padding:12px 16px"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+     <button class="btn ghost sm" id="ma_prev">‹ Prev</button>
+     <div style="font-weight:600;font-family:var(--fh)">${esc(label)}</div>
+     <button class="btn ghost sm" id="ma_next" ${myPerfBack<=0?'disabled':''}>Next ›</button>
+     <div style="margin-left:auto;display:flex;gap:12px;flex-wrap:wrap">${legend.map(l=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--muted)"><span style="width:10px;height:10px;border-radius:50%;background:${l[0]}"></span>${l[1]}</span>`).join("")}</div>
+   </div></div>
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+     <div class="card stat"><div class="k">On-time</div><div class="v tnum">${att.onTimePct==null?'—':att.onTimePct+'%'}</div><div class="sub">${att.attendedDays?att.attendedDays-att.lateCount:0} of ${att.attendedDays||0} mornings</div></div>
+     <div class="card stat"><div class="k">Present</div><div class="v tnum">${att.present||0}${att.working?'<span style="font-size:15px;color:var(--faint)"> / '+att.working+'</span>':''}</div><div class="sub">working days</div></div>
+     <div class="card stat"><div class="k">Late starts</div><div class="v tnum">${att.lateCount||0}</div><div class="sub">${att.lateMin?att.lateMin+' min total':'—'}</div></div>
+     <div class="card stat"><div class="k">Absent</div><div class="v tnum">${att.absent||0}</div><div class="sub">missed days</div></div>
+   </div>
+   <div class="card" style="padding:16px 18px">
+     <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:6px">${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d=>`<div class="muted" style="font-size:11px;text-align:center">${d}</div>`).join("")}</div>
+     <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px">${cells}</div>
+     <p class="hint" style="margin-top:10px">Attendance is based on your scheduled start time. Green = on time, amber = late, red = absent on a working day.</p>
+   </div>`;
+  c.querySelector("#ma_prev").onclick=()=>{myPerfBack++;viewMyAttendance();};
+  const nx=c.querySelector("#ma_next"); if(nx&&!nx.disabled) nx.onclick=()=>{myPerfBack=Math.max(0,myPerfBack-1);viewMyAttendance();};
+}
+
+async function viewMyPerformance(){
+  const c=content(); const {from,to,label}=_monthRange(myPerfBack);
+  const [{att,nameSelf},ts]=await Promise.all([_staffAtt(from,to), _myTaskStats(from,to)]);
+  const s=att.scores||{}; const overall=_staffOverall(att,ts.delivery); const grade=_gradeOf(overall); const fb=_staffFeedback(att,ts);
+  c.innerHTML=`
+   <div class="card" style="padding:12px 16px"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+     <button class="btn ghost sm" id="mp_prev">‹ Prev</button>
+     <div style="font-weight:600;font-family:var(--fh)">${esc(label)}</div>
+     <button class="btn ghost sm" id="mp_next" ${myPerfBack<=0?'disabled':''}>Next ›</button>
+   </div></div>
+   <div class="card" style="padding:18px">
+     <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+       <div style="text-align:center;min-width:90px"><div style="font-family:var(--fh);font-size:40px;font-weight:700;line-height:1">${overall!=null?overall:'—'}</div><span class="pill ${grade.cls}">${grade.g}</span></div>
+       <div style="flex:1;min-width:220px">
+         ${_factorBar('Punctuality',s.punctuality)}
+         ${_factorBar('Finishing shifts',s.completion)}
+         ${_factorBar('Attendance',s.attendance)}
+         ${_factorBar('On-time delivery',ts.delivery)}
+       </div>
+     </div>
+     <div style="display:flex;gap:16px;flex-wrap:wrap;border-top:1px solid var(--border);margin-top:14px;padding-top:12px;font-size:13px">
+       ${fb.good.length?`<div style="flex:1;min-width:160px"><div style="font-weight:600;color:#16a34a;margin-bottom:4px">Strengths</div><ul style="margin:0;padding-left:16px;line-height:1.7;color:var(--muted)">${fb.good.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`:''}
+       ${fb.imp.length?`<div style="flex:1;min-width:160px"><div style="font-weight:600;color:#d97706;margin-bottom:4px">To improve</div><ul style="margin:0;padding-left:16px;line-height:1.7;color:var(--muted)">${fb.imp.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`:''}
+       ${!fb.good.length&&!fb.imp.length?'<div class="muted">No notes for this period.</div>':''}
+     </div>
+   </div>
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+     <div class="card stat"><div class="k">On-time starts</div><div class="v tnum">${att.onTimePct==null?'—':att.onTimePct+'%'}</div><div class="sub">${label}</div></div>
+     <div class="card stat"><div class="k">Days present</div><div class="v tnum">${att.present||0}${att.working?' / '+att.working:''}</div><div class="sub">${att.absent||0} absent</div></div>
+     <div class="card stat"><div class="k">Tasks on time</div><div class="v tnum">${ts.on} / ${ts.due}</div><div class="sub">deadlines met</div></div>
+   </div>
+   <p class="hint" style="padding:2px 2px">These scores are worked out automatically from your start times, attendance and task deadlines. Your manager sees the same scores. Use Prev to see last month.</p>`;
+  c.querySelector("#mp_prev").onclick=()=>{myPerfBack++;viewMyPerformance();};
+  const nx=c.querySelector("#mp_next"); if(nx&&!nx.disabled) nx.onclick=()=>{myPerfBack=Math.max(0,myPerfBack-1);viewMyPerformance();};
+}
+
 async function viewOverview(){
+  if(hideHours()) return viewStaffHome();
   const todayISO=startOfToday(), wkISO=startOfWeek();
   const lastWkISO=new Date(new Date(wkISO).getTime()-7*864e5).toISOString();
   const yISO=new Date(new Date(todayISO).getTime()-864e5).toISOString();
@@ -1049,7 +1228,7 @@ async function viewProjects(){
   c.innerHTML=projs.map(p=>{const ts=tByP[p.id]||[];const done=ts.filter(t=>t.status==='done').length;const asg=assignBy[p.id]||[];
     const trkH=(trackedBy[p.id]||0)/3600; const budget=p.budget_hours?Number(p.budget_hours):0;
     const over=budget&&trkH>budget;
-    const budgetBar=budget?`<div style="margin-top:10px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span class="muted">Budget</span><span class="tnum" style="font-weight:600${over?';color:var(--heart)':''}">${trkH.toFixed(1)} / ${budget} h${over?' · over':''}</span></div><div class="bar ${over?'unproductive':'productive'}"><i style="width:${budget?Math.min(100,Math.round(trkH/budget*100)):0}%"></i></div></div>`:'';
+    const budgetBar=(budget&&!hideHours())?`<div style="margin-top:10px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span class="muted">Budget</span><span class="tnum" style="font-weight:600${over?';color:var(--heart)':''}">${trkH.toFixed(1)} / ${budget} h${over?' · over':''}</span></div><div class="bar ${over?'unproductive':'productive'}"><i style="width:${budget?Math.min(100,Math.round(trkH/budget*100)):0}%"></i></div></div>`:'';
     const stack=asg.length?`<div style="display:flex;align-items:center" title="${esc(asg.map(pNameOf).join(', '))}">${asg.slice(0,4).map((u,i)=>`<div class="avatar" style="width:24px;height:24px;font-size:10px;border:2px solid var(--surface);${i?'margin-left:-8px':''}">${esc(initials(pNameOf(u)))}</div>`).join("")}${asg.length>4?`<span class="pill muted" style="margin-left:4px">+${asg.length-4}</span>`:''}</div>`:'<span class="faint" style="font-size:12.5px">No one assigned</span>';
     return `<div class="card" style="padding:16px 18px${p.archived?';opacity:.62':''}">
       <div class="sec-head"><div style="display:flex;align-items:center;gap:9px">
@@ -2459,7 +2638,8 @@ function lockPill(plan){return `<span class="pill warn" style="font-size:11px">$
 async function viewSettings(){
   const c=content();
   const s=state.company.settings||{};
-  const sc=s.screenshots||{}, idle=s.idle||{}, sch=s.schedule||{};
+  const sc=s.screenshots||{}, idle=s.idle||{}, sch=s.schedule||{}, staff=s.staff||{};
+  const hideHrs=!!staff.hideHours;
   const enabled=sc.enabled!==false, interval=sc.intervalMin||10, blur=!!sc.blur;
   const idleLimit=idle.limitMin||5;
   const startTime=sch.startTime||"09:00";
@@ -2488,6 +2668,10 @@ async function viewSettings(){
      ${row("Working days","",`<div style="display:flex;gap:6px;flex-wrap:wrap">${dayNames.map((d,i)=>`<label style="display:inline-flex;align-items:center;gap:4px;font-size:13px"><input type="checkbox" class="s_wd" value="${dayIdx[i]}" ${workdays.includes(dayIdx[i])?'checked':''}> ${d}</label>`).join("")}</div>`)}
    </div>
 
+   <div class="card" style="padding:4px 18px 18px"><div class="sec-head" style="padding:16px 0 0"><h3>Staff privacy</h3></div>
+     ${row("Hide tracked hours from staff","When on, employees never see their tracked hours. They see attendance, punctuality, performance and tasks instead. Managers always see hours. (Used for Fitma's own team.)",`<input type="checkbox" id="s_hidehrs" ${hideHrs?'checked':''} style="width:18px;height:18px">`)}
+   </div>
+
    <div class="row" style="justify-content:flex-end"><span id="s_msg" class="muted" style="align-self:center;font-size:13px"></span><button class="btn pri" id="s_save">Save settings</button></div>`;
 
   c.querySelector("#s_save").onclick=async()=>{
@@ -2495,7 +2679,8 @@ async function viewSettings(){
     const settings={
       screenshots:{enabled:c.querySelector("#s_en").checked, intervalMin:Math.max(3,Math.min(60,+c.querySelector("#s_int").value||10)), blur:false},
       idle:{limitMin:Math.max(1,Math.min(60,+c.querySelector("#s_idle").value||5))},
-      schedule:{startTime:c.querySelector("#s_start").value||"09:00", workdays:[...c.querySelectorAll(".s_wd:checked")].map(x=>+x.value)}
+      schedule:{startTime:c.querySelector("#s_start").value||"09:00", workdays:[...c.querySelectorAll(".s_wd:checked")].map(x=>+x.value)},
+      staff:{hideHours:c.querySelector("#s_hidehrs").checked}
     };
     const {error}=await sb.from("companies").update({settings}).eq("id",cid());
     if(error){ c.querySelector("#s_msg").innerHTML=`<span style="color:var(--crit)">${esc(error.message)}</span>`; }
