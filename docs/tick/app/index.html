@@ -400,7 +400,9 @@ const ICON={
   timereq:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v4l2.5 1.5"/><path d="M12 2.5v2M12 19.5v2"/></svg>',
   live:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M5.5 5.5a9 9 0 0 0 0 13M18.5 5.5a9 9 0 0 1 0 13M8 8a5 5 0 0 0 0 8M16 8a5 5 0 0 1 0 8"/></svg>',
   attendance:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/><path d="M8.5 14.5l2.5 2.5 4-4.5"/></svg>',
-  myperf:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v16h16"/><path d="M8 15l3-3 2 2 4-5"/><circle cx="20" cy="9" r="0"/></svg>'};
+  myperf:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v16h16"/><path d="M8 15l3-3 2 2 4-5"/><circle cx="20" cy="9" r="0"/></svg>',
+  myapps:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
+  mybreaks:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9h12v5a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z"/><path d="M16 10h2.5a2.5 2.5 0 0 1 0 5H16"/><path d="M7 2.5v2.5M10.5 2.5v2.5"/></svg>'};
 function isMgr(){return ["owner","admin"].includes(state.membership.role);}
 // When ON for a company, staff (non-managers) never see tracked hours — they see attendance, performance and tasks instead. Managers always see hours.
 function staffHidesHours(){ return !!(((state.company&&state.company.settings&&state.company.settings.staff)||{}).hideHours); }
@@ -411,7 +413,7 @@ function planName(){const m={trial:"Free trial",starter:"Starter",pro:"Pro",busi
 function navItems(){
   // Staff view when hours are hidden (e.g. Fitma's own team): no hour screens, show attendance & performance instead
   if(hideHours()){
-    const sn=[["overview","Dashboard"],["attendance","My attendance"],["myperf","My performance"],["projects","Projects & tasks"],["shots","Screenshots"],["download","Download app"]];
+    const sn=[["overview","Dashboard"],["attendance","My attendance"],["myperf","My performance"],["myapps","Apps & websites"],["mybreaks","Breaks"],["projects","Projects & tasks"],["shots","Screenshots"],["download","Download app"]];
     if(planAtLeast("pro")) sn.push(["timeoff","Time off"]);
     return sn;
   }
@@ -461,7 +463,7 @@ function renderShell(){
 }
 function closeRail(){const r=app.querySelector("#rail"),s=app.querySelector("#scrim");if(r)r.classList.remove("open");if(s)s.hidden=true;}
 function setActive(v){app.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
-  const titles={overview:"Overview",timesheet:"My timesheet",team:"Team",live:"Live — who's working now",projects:"Projects & tasks",shots:"Screenshots",reports:"Reports",timereq:"Time requests",finance:"Finances",timeoff:"Time off",shifts:"Shifts",settings:"Settings",billing:"Billing & plan",operator:"Operator — all companies",attendance:"My attendance",myperf:"My performance"};
+  const titles={overview:"Overview",timesheet:"My timesheet",team:"Team",live:"Live — who's working now",projects:"Projects & tasks",shots:"Screenshots",reports:"Reports",timereq:"Time requests",finance:"Finances",timeoff:"Time off",shifts:"Shifts",settings:"Settings",billing:"Billing & plan",operator:"Operator — all companies",attendance:"My attendance",myperf:"My performance",myapps:"Apps & websites",mybreaks:"Breaks"};
   app.querySelector("#viewtitle").textContent=(hideHours()&&v==="overview")?"Dashboard":(titles[v]||v);}
 function content(){return app.querySelector("#content");}
 function renderLoader(t){app.innerHTML=`<div class="loader"><div class="spin"></div><div>${esc(t||"Loading…")}</div></div>`;}
@@ -481,6 +483,8 @@ async function loadView(v){
     else if(v==="team") await viewTeam();
     else if(v==="attendance") await viewMyAttendance();
     else if(v==="myperf") await viewMyPerformance();
+    else if(v==="myapps") await viewMyApps();
+    else if(v==="mybreaks") await viewMyBreaks();
     else if(v==="live") await viewLive();
     else if(v==="projects") await viewProjects();
     else if(v==="shots") await viewShots();
@@ -797,6 +801,48 @@ async function viewMyPerformance(){
    <p class="hint" style="padding:2px 2px">These scores are worked out automatically from your start times, attendance and task deadlines. Your manager sees the same scores. Use Prev to see last month.</p>`;
   c.querySelector("#mp_prev").onclick=()=>{myPerfBack++;viewMyPerformance();};
   const nx=c.querySelector("#mp_next"); if(nx&&!nx.disabled) nx.onclick=()=>{myPerfBack=Math.max(0,myPerfBack-1);viewMyPerformance();};
+}
+
+async function viewMyApps(){
+  const c=content(); const me=state.user.id;
+  const from=new Date(Date.now()-30*864e5);
+  const [{data:au},{data:cats}]=await Promise.all([
+    sb.from("app_usage").select("app_name,host,url,started_at").eq("company_id",cid()).eq("user_id",me).gte("started_at",from.toISOString()),
+    sb.from("app_categories").select("app_name,category").eq("company_id",cid())
+  ]);
+  const catMap={}; (cats||[]).forEach(cc=>catMap[cc.app_name]=cc.category);
+  const agg={}; (au||[]).forEach(r=>{const k=r.app_name||r.host||"Unknown";(agg[k]=agg[k]||{n:0}).n++;});
+  const list=Object.entries(agg).map(([k,v])=>({app:k,n:v.n,cat:catMap[k]||"neutral"})).sort((a,b)=>b.n-a.n);
+  const total=list.reduce((s,x)=>s+x.n,0);
+  const catLabel={productive:"Productive",unproductive:"Unproductive",neutral:"Neutral"}; const catPill={productive:"good",unproductive:"crit",neutral:"muted"};
+  const prodN=list.filter(x=>x.cat==="productive").reduce((s,x)=>s+x.n,0); const prodPct=total?Math.round(prodN/total*100):0;
+  c.innerHTML=`
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+     <div class="card stat"><div class="k">Productive</div><div class="v tnum">${prodPct}%</div><div class="sub">of your activity</div></div>
+     <div class="card stat"><div class="k">Apps &amp; sites used</div><div class="v tnum">${list.length}</div><div class="sub">last 30 days</div></div>
+   </div>
+   <div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Your apps &amp; websites</h3><span class="muted" style="font-size:13px">last 30 days</span></div>
+     ${list.length?`<div style="overflow-x:auto"><table><thead><tr><th>App / Website</th><th style="width:42%">Share</th><th>Rating</th></tr></thead><tbody>
+       ${list.slice(0,40).map(x=>{const max=list[0].n||1;return `<tr><td>${esc(x.app)}</td><td><div class="bar ${x.cat==='productive'?'productive':x.cat==='unproductive'?'unproductive':''}"><i style="width:${Math.round(x.n/max*100)}%"></i></div></td><td><span class="pill ${catPill[x.cat]}">${catLabel[x.cat]}</span></td></tr>`;}).join("")}
+     </tbody></table></div><p class="hint" style="padding:10px 18px">Your manager rates each app or site as productive, neutral or unproductive. This fills in as you work with the Fitma Tick desktop app running.</p>`:`<div class="empty">${ICON.myapps}<div><b>No apps or websites tracked yet.</b></div><p class="hint" style="max-width:420px;margin:8px auto 0">This fills in as you work with the Fitma Tick desktop app running.</p></div>`}</div>`;
+}
+
+async function viewMyBreaks(){
+  const c=content(); const me=state.user.id;
+  const from=new Date(Date.now()-30*864e5);
+  const {data:brk}=await sb.from("idle_periods").select("started_at,ended_at,duration_sec").eq("company_id",cid()).eq("user_id",me).gte("started_at",from.toISOString()).order("started_at",{ascending:false});
+  const B=(brk||[]).map(r=>({...r,sec:(r.duration_sec!=null?r.duration_sec:(r.ended_at?Math.max(0,(new Date(r.ended_at)-new Date(r.started_at))/1000):0))}));
+  const totalN=B.length, totalSec=B.reduce((s,x)=>s+x.sec,0);
+  c.innerHTML=`
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+     <div class="card stat"><div class="k">Breaks</div><div class="v tnum">${totalN}</div><div class="sub">last 30 days</div></div>
+     <div class="card stat"><div class="k">Total break time</div><div class="v tnum">${fmtDur(totalSec)}</div><div class="sub">away from work</div></div>
+     <div class="card stat"><div class="k">Average break</div><div class="v tnum">${totalN?fmtDur(totalSec/totalN):'0m 00s'}</div><div class="sub">per break</div></div>
+   </div>
+   <div class="card"><div class="sec-head" style="padding:16px 18px 10px"><h3>Your breaks</h3><span class="muted" style="font-size:13px">last 30 days</span></div>
+     ${B.length?`<div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Start</th><th>End</th><th class="tnum" style="text-align:right">Length</th></tr></thead><tbody>
+       ${B.slice(0,200).map(r=>`<tr><td style="white-space:nowrap">${fmtDate(dkey(new Date(r.started_at)))}</td><td class="tnum">${new Date(r.started_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</td><td class="tnum">${r.ended_at?new Date(r.ended_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'<span class="muted">ongoing</span>'}</td><td class="tnum" style="text-align:right;font-weight:600">${fmtDur(r.sec)}</td></tr>`).join("")}
+     </tbody></table></div><p class="hint" style="padding:10px 18px">A break is time the desktop app detected no keyboard or mouse. This fills in as you work with the Fitma Tick desktop app running.</p>`:`<div class="empty">${ICON.mybreaks}<div><b>No breaks recorded yet.</b></div><p class="hint" style="max-width:420px;margin:8px auto 0">This fills in as you work with the Fitma Tick desktop app running.</p></div>`}</div>`;
 }
 
 async function viewOverview(){
